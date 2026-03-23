@@ -6,9 +6,21 @@
 
 - **Semantic Versioning (semver)** 준수: `MAJOR.MINOR.PATCH`
 - Git tag로 버전 표기 (예: `v0.1.0`)
-- `main`: 항상 동작하는 상태 유지, 릴리스 태그는 `main`에서만
-- `feat/*`, `fix/*`: 기능 단위 작업 브랜치 → PR로 머지
-- `develop` / `release` 브랜치는 사용하지 않음
+
+### 브랜치 구조
+
+| 브랜치 | 용도 | 머지 방식 |
+|--------|------|-----------|
+| `main` | 안정 릴리스 상태 유지 | `release/*` → main: merge commit |
+| `release/{version}` | 릴리스 단위 통합 브랜치 (예: `release/v0.1.0`) | `feat/*`, `fix/*` → release: squash merge |
+| `feat/*`, `fix/*` | 기능/버그 단위 작업 브랜치 | PR로 release 브랜치에 머지 |
+
+### 워크플로우
+
+1. `release/{version}` 브랜치 생성
+2. `feat/*`, `fix/*` 브랜치에서 작업 → `release/{version}`으로 PR (squash merge)
+3. 릴리스 준비 완료 시 `release/{version}` → `main`으로 PR (merge commit)
+4. `main`에 머지 후 버전 tag 생성
 
 ## 개발 환경
 
