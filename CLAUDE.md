@@ -64,7 +64,7 @@
 ## 코드 복사 방침
 
 - **서브모듈 사용하지 않음** — 두 프로젝트 모두 상당한 커스터마이징 필요
-- pika-zoo, p2p-online 코드를 직접 복사하여 가져옴
+- pika-zoo, pikachu-volleyball 코드를 직접 복사하여 가져옴
 - 각 디렉토리에 원본 출처, 라이선스(LICENSE), 변경사항(ATTRIBUTION.md)을 명시
 
 ### pika-zoo 환경 코드
@@ -72,10 +72,10 @@
 - 복사 위치: `training/env/`
 - MIT License
 
-### p2p-online 웹 코드
-- 소스: https://github.com/gorisanson/pikachu-volleyball-p2p-online
+### pikachu-volleyball 웹 코드
+- 소스: https://github.com/gorisanson/pikachu-volleyball
 - 복사 위치: `web/`
-- 원본 저장소 라이선스 확인 필요
+- 원본 저장소 라이선스 확인 필요 (UNLICENSED)
 
 ## 작업 단계
 
@@ -83,7 +83,7 @@
 
 1. **디렉토리 구조 생성**: 저장소 구조(README.md 참고)대로 생성
 2. **pika-zoo 복사**: 환경 코드 전체를 `training/env/`에 배치, LICENSE + ATTRIBUTION.md 포함
-3. **p2p-online 복사**: 전체 소스를 `web/`에 배치, LICENSE + ATTRIBUTION.md 포함
+3. **pikachu-volleyball 복사**: 전체 소스를 `web/`에 배치, ATTRIBUTION.md 포함
 4. **Python 환경**: `pyproject.toml` + `uv lock`으로 의존성 관리
 5. **환경 동작 확인**: `training/scripts/test_env.py` — import, reset/step 정상 작동 테스트
 6. **기본 PPO 학습 확인**: `training/scripts/train_ppo.py` — PettingZoo → Gymnasium 래퍼 적용 (SB3는 단일 에이전트 인터페이스 필요)
@@ -100,10 +100,10 @@
 
 1. 학습된 PyTorch 모델 → ONNX 변환
 2. ONNX → onnxruntime-web 또는 TensorFlow.js 변환
-3. p2p-online 웹 코드에서 규칙 기반 AI 자리에 RL 모델 추론 삽입
+3. 웹 코드에서 규칙 기반 AI 자리에 RL 모델 추론 삽입
 4. 로컬 웹에서 사람 vs RL 에이전트 대전 확인
-5. P2P 온라인 대전에 RL 에이전트 통합
-6. GitHub Pages 등으로 온라인 배포
+5. GitHub Pages 등으로 온라인 배포
+6. (선택) P2P 온라인 대전 통합 (pikachu-volleyball-p2p-online 기반)
 
 ## hankluo6 선행 연구 참고
 
@@ -125,5 +125,5 @@ hankluo6은 gym-pikachu-volleyball 기반으로 4가지 조합을 실험:
 ## 라이선스 참고
 
 - pika-zoo: MIT License
-- pikachu-volleyball-p2p-online: 원본 저장소 라이선스 확인 필요
+- pikachu-volleyball: 원본 저장소 라이선스 확인 필요 (UNLICENSED)
 - 원작 게임 에셋: "(C) SACHI SOFT / SAWAYAKAN Programmers", "(C) Satoshi Takenouchi" 1997

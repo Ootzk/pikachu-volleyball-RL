@@ -10,8 +10,8 @@
 
 | 저장소 | 설명 | 역할 |
 |--------|------|------|
-| [gorisanson/pikachu-volleyball](https://github.com/gorisanson/pikachu-volleyball) | 원작 리버스 엔지니어링 → JS 재구현 (물리엔진+규칙AI, PixiJS 렌더링) | 참고 (웹 버전의 원본) |
-| [gorisanson/pikachu-volleyball-p2p-online](https://github.com/gorisanson/pikachu-volleyball-p2p-online) | 위 프로젝트에 WebRTC P2P 온라인 대전 추가 | **웹 데모 베이스로 코드 복사** |
+| [gorisanson/pikachu-volleyball](https://github.com/gorisanson/pikachu-volleyball) | 원작 리버스 엔지니어링 → JS 재구현 (물리엔진+규칙AI, PixiJS 렌더링) | **웹 데모 베이스로 코드 복사** |
+| [gorisanson/pikachu-volleyball-p2p-online](https://github.com/gorisanson/pikachu-volleyball-p2p-online) | 위 프로젝트에 WebRTC P2P 온라인 대전 추가 | P2P 온라인 대전 참고 |
 | [helpingstar/pika-zoo](https://github.com/helpingstar/pika-zoo) | 피카츄배구 물리엔진을 Python으로 포팅, PettingZoo 멀티에이전트 RL 환경 | **학습 환경 베이스로 코드 복사** |
 | [DuckLL/pikachu-volleyball](https://github.com/duckll/pikachu-volleyball) | gorisanson 포크, 규칙 기반 AI 강화 (슈퍼서브, 예측공격 등) | 벤치마크 상대로 참고 |
 | [hankluo6/Pikachu-VolleyBall-RL](https://github.com/hankluo6/Pikachu-VolleyBall-RL) | PPO/ES + Self-play로 학습 (gym 기반). 웹 데모 없음 | 선행 연구 참고 |
@@ -22,7 +22,7 @@
 - **학습 프레임워크**: PyTorch + Stable Baselines3 (SB3)
 - **학습 알고리즘**: PPO → Self-play (PFSP 등 고급 기법 적용 예정)
 - **모델 변환**: PyTorch → ONNX → onnxruntime-web 또는 TensorFlow.js
-- **웹 데모**: gorisanson/pikachu-volleyball-p2p-online 기반 (JavaScript, PixiJS, WebRTC)
+- **웹 데모**: gorisanson/pikachu-volleyball 기반 (JavaScript, PixiJS)
 
 ## 저장소 구조 (모노레포)
 
@@ -36,7 +36,7 @@ pikachu-volleyball-RL/
 │   ├── checkpoints/         # PyTorch 체크포인트
 │   └── exported/            # 변환된 ONNX / TFJS 모델
 ├── web/                     # JavaScript 웹 데모
-│   └── (p2p-online 코드 복사 + RL 에이전트 통합)
+│   └── (pikachu-volleyball 코드 복사 + RL 에이전트 통합)
 ├── docs/                    # 문서
 ├── LICENSE
 └── README.md
@@ -45,5 +45,5 @@ pikachu-volleyball-RL/
 ## 라이선스
 
 - pika-zoo: MIT License
-- pikachu-volleyball-p2p-online: 원본 저장소 라이선스 확인 필요
+- pikachu-volleyball: 원본 저장소 라이선스 확인 필요 (UNLICENSED)
 - 원작 게임 에셋: "(C) SACHI SOFT / SAWAYAKAN Programmers", "(C) Satoshi Takenouchi" 1997
