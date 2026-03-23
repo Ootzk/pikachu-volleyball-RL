@@ -5,12 +5,8 @@ Usage:
 """
 
 import argparse
-import sys
 
-sys.path.insert(0, "training/utils")
-sys.path.insert(0, "training/env")
-
-from elo import make_player, round_robin
+from training.utils.elo import make_player, round_robin
 
 
 def main():

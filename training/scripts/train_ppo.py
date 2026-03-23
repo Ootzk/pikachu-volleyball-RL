@@ -10,17 +10,13 @@ Usage:
 
 import argparse
 import os
-import sys
-
-sys.path.insert(0, "training/utils")
-sys.path.insert(0, "training/env")
 
 import gymnasium as gym
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.vec_env import SubprocVecEnv
 
-from elo import evaluate_model
+from training.utils.elo import evaluate_model
 from pikazoo.env.pikazoo_env import raw_env
 from pikazoo.wrappers import ConvertSingleAgent, NormalizeObservation, SimplifyAction
 

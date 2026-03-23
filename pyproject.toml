@@ -5,7 +5,7 @@ description = "Train a Pikachu Volleyball AI with reinforcement learning and pla
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "pettingzoo",
+    "pikazoo",
     "stable-baselines3",
     "torch",
     "gymnasium",
@@ -13,3 +13,13 @@ dependencies = [
     "pygame>=2.3.0",
     "moviepy>=1.0.0",
 ]
+
+[tool.uv.sources]
+pikazoo = { path = "training/env", editable = true }
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["training", "training.*"]

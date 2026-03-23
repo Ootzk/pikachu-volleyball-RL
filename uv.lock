@@ -1172,13 +1172,13 @@ wheels = [
 [[package]]
 name = "pikachu-volleyball-rl"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "gymnasium" },
     { name = "moviepy" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "pettingzoo" },
+    { name = "pikazoo" },
     { name = "pygame" },
     { name = "stable-baselines3" },
     { name = "torch" },
@@ -1189,10 +1189,30 @@ requires-dist = [
     { name = "gymnasium" },
     { name = "moviepy", specifier = ">=1.0.0" },
     { name = "numpy" },
-    { name = "pettingzoo" },
+    { name = "pikazoo", editable = "training/env" },
     { name = "pygame", specifier = ">=2.3.0" },
     { name = "stable-baselines3" },
     { name = "torch" },
+]
+
+[[package]]
+name = "pikazoo"
+version = "0.0.1"
+source = { editable = "training/env" }
+dependencies = [
+    { name = "gymnasium" },
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "pettingzoo" },
+    { name = "pygame" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "gymnasium" },
+    { name = "numpy" },
+    { name = "pettingzoo" },
+    { name = "pygame", specifier = ">=2.3.0" },
 ]
 
 [[package]]

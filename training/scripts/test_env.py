@@ -1,8 +1,5 @@
 """pika-zoo 환경 동작 확인 스크립트."""
 
-import sys
-sys.path.insert(0, "training/env")
-
 from pikazoo.env.pikazoo_env import raw_env
 
 
