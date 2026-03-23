@@ -1,0 +1,13 @@
+[project]
+name = "pikachu-volleyball-rl"
+version = "0.1.0"
+description = "Train a Pikachu Volleyball AI with reinforcement learning and play against it in your browser"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pettingzoo",
+    "stable-baselines3",
+    "torch",
+    "gymnasium",
+    "numpy",
+]

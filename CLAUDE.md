@@ -42,36 +42,12 @@
 - 파일이 작으므로 Git에 직접 커밋
 
 ### Docker
-- 현 단계에서는 불필요 (`requirements.txt` + venv로 충분)
+- 현 단계에서는 불필요 (uv + venv로 충분)
 - 학습 환경 재현성이 필요해지면 `training/Dockerfile` 추가
 
 ### 실험 추적
 - W&B 또는 TensorBoard 연동 (SB3 네이티브 지원)
 - 하이퍼파라미터, 보상 커브, ELO 추적에 활용
-
-## .gitignore 규칙
-
-```
-# Python
-__pycache__/
-*.egg-info/
-.venv/
-
-# 학습 산출물
-models/checkpoints/
-models/exported/
-*.pt
-*.onnx
-wandb/
-tensorboard_logs/
-
-# Web
-web/node_modules/
-web/dist/
-
-# OS
-.DS_Store
-```
 
 ## 코드 복사 방침
 
@@ -89,7 +65,9 @@ web/dist/
 - 복사 위치: `web/`
 - 원본 저장소 라이선스 확인 필요
 
-## Phase 1 초기 세팅 상세 지침
+## 작업 단계
+
+### Phase 1: 초기 세팅
 
 1. **디렉토리 구조 생성**: 저장소 구조(README.md 참고)대로 생성
 2. **pika-zoo 복사**: 환경 코드 전체를 `training/env/`에 배치, LICENSE + ATTRIBUTION.md 포함
@@ -97,6 +75,23 @@ web/dist/
 4. **Python 환경**: `pyproject.toml` + `uv lock`으로 의존성 관리
 5. **환경 동작 확인**: `training/scripts/test_env.py` — import, reset/step 정상 작동 테스트
 6. **기본 PPO 학습 확인**: `training/scripts/train_ppo.py` — PettingZoo → Gymnasium 래퍼 적용 (SB3는 단일 에이전트 인터페이스 필요)
+
+### Phase 2: 학습 고도화
+
+1. Self-play 구현 (과거 버전 상대풀 관리, 상대 교체 전략)
+2. PFSP (Prioritized Fictitious Self-Play) 적용
+3. 커리큘럼 러닝 (쉬운 환경 → 어려운 환경)
+4. ELO 레이팅 추적
+5. DuckLL Super AI 대비 벤치마크
+
+### Phase 3: 웹 데모 통합
+
+1. 학습된 PyTorch 모델 → ONNX 변환
+2. ONNX → onnxruntime-web 또는 TensorFlow.js 변환
+3. p2p-online 웹 코드에서 규칙 기반 AI 자리에 RL 모델 추론 삽입
+4. 로컬 웹에서 사람 vs RL 에이전트 대전 확인
+5. P2P 온라인 대전에 RL 에이전트 통합
+6. GitHub Pages 등으로 온라인 배포
 
 ## hankluo6 선행 연구 참고
 

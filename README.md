@@ -43,31 +43,6 @@ pikachu-volleyball-RL/
 └── README.md
 ```
 
-## 작업 단계
-
-### Phase 1: 초기 세팅 (현재)
-1. 저장소 디렉토리 구조 생성
-2. pika-zoo 환경 코드를 `training/env/`에 복사
-3. p2p-online 웹 코드를 `web/`에 복사
-4. Python 환경 세팅 (requirements.txt)
-5. pika-zoo 환경 동작 확인
-6. SB3 PPO로 규칙 기반 AI 상대 기본 학습 동작 확인
-
-### Phase 2: 학습 고도화
-1. Self-play 구현 (과거 버전 상대풀 관리, 상대 교체 전략)
-2. PFSP (Prioritized Fictitious Self-Play) 적용
-3. 커리큘럼 러닝 (쉬운 환경 → 어려운 환경)
-4. ELO 레이팅 추적
-5. DuckLL Super AI 대비 벤치마크
-
-### Phase 3: 웹 데모 통합
-1. 학습된 PyTorch 모델 → ONNX 변환
-2. ONNX → onnxruntime-web 또는 TensorFlow.js 변환
-3. p2p-online 웹 코드에서 규칙 기반 AI 자리에 RL 모델 추론 삽입
-4. 로컬 웹에서 사람 vs RL 에이전트 대전 확인
-5. P2P 온라인 대전에 RL 에이전트 통합
-6. GitHub Pages 등으로 온라인 배포
-
 ## 라이선스
 
 - pika-zoo: MIT License
