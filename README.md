@@ -35,7 +35,6 @@ pikachu-volleyball-RL/
 ├── models/                  # 학습된 모델 저장
 │   ├── checkpoints/         # PyTorch 체크포인트
 │   └── exported/            # 변환된 ONNX / TFJS 모델
-├── scripts/                 # 모델 변환 스크립트 (PyTorch → ONNX → Web)
 ├── web/                     # JavaScript 웹 데모
 │   └── (p2p-online 코드 복사 + RL 에이전트 통합)
 ├── docs/                    # 문서

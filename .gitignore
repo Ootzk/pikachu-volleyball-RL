@@ -3,6 +3,9 @@ __pycache__/
 *.egg-info/
 .venv/
 
+# 생성된 미디어
+*.mp4
+
 # 학습 산출물
 models/checkpoints/
 models/exported/

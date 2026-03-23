@@ -10,4 +10,6 @@ dependencies = [
     "torch",
     "gymnasium",
     "numpy",
+    "pygame>=2.3.0",
+    "moviepy>=1.0.0",
 ]
