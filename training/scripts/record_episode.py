@@ -4,8 +4,8 @@ Usage:
   # 양쪽 랜덤
   uv run python training/scripts/record_episode.py
 
-  # player_1에 학습된 모델 사용
-  uv run python training/scripts/record_episode.py --p1-model models/checkpoints/ppo_pikazoo
+  # player_1에 학습된 모델, player_2는 규칙 AI
+  uv run python training/scripts/record_episode.py --p1 models/checkpoints/ppo_pikazoo --p2 builtin
 """
 
 import argparse
@@ -62,16 +62,27 @@ def main():
     parser.add_argument("--score", type=int, default=5)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--fps", type=int, default=25)
-    parser.add_argument("--p1-model", default=None, help="Path to player_1 model")
-    parser.add_argument("--p2-model", default=None, help="Path to player_2 model")
+    parser.add_argument("--p1", default="random",
+                        help="Player 1: 'random', 'builtin', or model path")
+    parser.add_argument("--p2", default="random",
+                        help="Player 2: 'random', 'builtin', or model path")
     args = parser.parse_args()
 
-    env = raw_env(winning_score=args.score, serve="winner", render_mode="rgb_array")
+    env = raw_env(
+        winning_score=args.score, serve="winner", render_mode="rgb_array",
+        is_player1_computer=(args.p1 == "builtin"),
+        is_player2_computer=(args.p2 == "builtin"),
+    )
     env = SimplifyAction(env)
     env = NormalizeObservation(env)
 
-    p1_model = PPO.load(args.p1_model) if args.p1_model else None
-    p2_model = PPO.load(args.p2_model) if args.p2_model else None
+    def load_player(spec):
+        if spec in ("random", "builtin"):
+            return None
+        return PPO.load(spec, device="cpu")
+
+    p1_model = load_player(args.p1)
+    p2_model = load_player(args.p2)
 
     record_episode(env, args.output, seed=args.seed, fps=args.fps,
                    p1_model=p1_model, p2_model=p2_model)
