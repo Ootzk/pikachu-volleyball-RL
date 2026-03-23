@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.egg-info/
+.venv/
+
+# 학습 산출물
+models/checkpoints/
+models/exported/
+*.pt
+*.onnx
+wandb/
+tensorboard_logs/
+
+# Web
+web/node_modules/
+web/dist/
+
+# OS
+.DS_Store
