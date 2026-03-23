@@ -1,0 +1,15 @@
+[project]
+name = "pikazoo"
+version = "0.0.1"
+description = "PettingZoo environment for Pikachu Volleyball"
+requires-python = ">=3.10"
+dependencies = [
+    "pettingzoo",
+    "gymnasium",
+    "numpy",
+    "pygame>=2.3.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

@@ -1,9 +1,5 @@
 """ELO 레이팅 계산 및 대전 유틸리티."""
 
-import sys
-
-sys.path.insert(0, "training/env")
-
 from itertools import combinations
 
 import numpy as np

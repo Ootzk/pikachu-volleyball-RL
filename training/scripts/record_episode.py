@@ -9,9 +9,6 @@ Usage:
 """
 
 import argparse
-import sys
-
-sys.path.insert(0, "training/env")
 
 from moviepy import ImageSequenceClip
 from stable_baselines3 import PPO
