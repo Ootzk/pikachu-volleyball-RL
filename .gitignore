@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.egg-info/
+.venv/
+
+# 생성된 미디어
+*.mp4
+
+# 학습 산출물
+models/checkpoints/
+models/exported/
+*.pt
+*.onnx
+wandb/
+tensorboard_logs/
+
+# Web
+web/node_modules/
+web/dist/
+
+# OS
+.DS_Store
