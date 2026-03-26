@@ -44,11 +44,19 @@
 
 ## Artifact 관리
 
+### 실험 관리 (`experiments/`)
+- 실험 단위로 폴더 관리: `experiments/{번호}_{설명}/`
+- 각 폴더에 포함: `README.md` (설정/결과/교훈), 모델(`.zip`), 영상(`.mp4`), TensorBoard 로그
+- `README.md`만 Git에 커밋, 바이너리(`.zip`, `.mp4`)와 TensorBoard 이벤트는 `.gitignore`로 제외
+- TensorBoard: `--tensorboard-log experiments/XXX/tensorboard`로 실험별 로깅
+- 여러 실험 비교: `uv run tensorboard --logdir experiments/`
+
 ### 모델 파일
-- Git에 직접 커밋하지 않음 (수십~수백 MB)
-- **HuggingFace Hub** 사용: 모델 버저닝/카드 기능 내장, RL 프로젝트와 궁합 좋음
-- `models/checkpoints/`, `models/exported/`는 `.gitignore`에 포함
-- 배포용 최종 ONNX/TFJS 모델만 GitHub Releases 또는 `web/`에 포함
+- `models/`: 학습 중 임시 저장소 (`.gitignore`로 전체 제외)
+  - `models/checkpoints/p1/`, `models/checkpoints/p2/`: 학습 중 체크포인트
+  - `models/pool/`: self-play 상대풀
+- 실험 완료 후 `experiments/` 폴더에 복사하여 보관
+- 배포용 최종 ONNX/TFJS 모델은 GitHub Releases 또는 `web/`에 포함
 
 ### 게임 에셋 (스프라이트, 사운드)
 - 파일이 작으므로 Git에 직접 커밋
@@ -56,10 +64,6 @@
 ### Docker
 - 현 단계에서는 불필요 (uv + venv로 충분)
 - 학습 환경 재현성이 필요해지면 `training/Dockerfile` 추가
-
-### 실험 추적
-- W&B 또는 TensorBoard 연동 (SB3 네이티브 지원)
-- 하이퍼파라미터, 보상 커브, ELO 추적에 활용
 
 ## 코드 복사 방침
 
