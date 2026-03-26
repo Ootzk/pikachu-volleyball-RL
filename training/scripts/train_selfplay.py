@@ -166,8 +166,8 @@ def main():
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--latest-prob", type=float, default=0.5)
     parser.add_argument("--builtin-prob", type=float, default=0.2)
-    parser.add_argument("--curriculum", action="store_true",
-                        help="Dynamic curriculum: builtin 60%%→20%% over training")
+    parser.add_argument("--curriculum", default=None,
+                        help="Path to curriculum JSON file for dynamic opponent mix")
     parser.add_argument("--save-interval", type=int, default=5)
     parser.add_argument("--eval-freq", type=int, default=10)
     parser.add_argument("--eval-games", type=int, default=20)
@@ -179,16 +179,33 @@ def main():
     parser.add_argument("--p2-init", default=None, help="Pretrained p2 model path")
     args = parser.parse_args()
 
+    # 커리큘럼 로드
+    curriculum_schedule = None
+    if args.curriculum:
+        import json
+        with open(args.curriculum) as f:
+            curriculum_schedule = json.load(f)["schedule"]
+        curriculum_schedule.sort(key=lambda x: x["iter"])
+
     def get_probs(iteration):
         """커리큘럼 또는 고정 비율 반환: (latest_prob, builtin_prob)."""
-        if not args.curriculum:
+        if curriculum_schedule is None:
             return args.latest_prob, args.builtin_prob
-        progress = iteration / max(args.total_iterations - 1, 1)
-        # builtin: 0.6 → 0.2 (linear decay)
-        builtin = 0.6 - 0.4 * progress
-        # latest: 0.3 → 0.5
-        latest = 0.3 + 0.2 * progress
-        return latest, builtin
+        # 선형 보간
+        if iteration <= curriculum_schedule[0]["iter"]:
+            s = curriculum_schedule[0]
+            return s["latest"], s["builtin"]
+        if iteration >= curriculum_schedule[-1]["iter"]:
+            s = curriculum_schedule[-1]
+            return s["latest"], s["builtin"]
+        for i in range(len(curriculum_schedule) - 1):
+            a, b = curriculum_schedule[i], curriculum_schedule[i + 1]
+            if a["iter"] <= iteration <= b["iter"]:
+                t = (iteration - a["iter"]) / (b["iter"] - a["iter"])
+                latest = a["latest"] + t * (b["latest"] - a["latest"])
+                builtin = a["builtin"] + t * (b["builtin"] - a["builtin"])
+                return latest, builtin
+        return args.latest_prob, args.builtin_prob
 
     initial_latest, initial_builtin = get_probs(0)
     pool_prob = 1.0 - initial_latest - initial_builtin
@@ -224,8 +241,10 @@ def main():
 
     print(f"Self-play training: {args.total_iterations} iterations x {args.steps_per_iter} steps")
     print(f"Envs: {args.num_envs} (DummyVecEnv)")
-    if args.curriculum:
-        print(f"Curriculum: builtin 60%→20%, latest 30%→50%, pool 10%→30%")
+    if curriculum_schedule:
+        first, last = curriculum_schedule[0], curriculum_schedule[-1]
+        print(f"Curriculum: builtin {first['builtin']*100:.0f}%→{last['builtin']*100:.0f}%, "
+              f"latest {first['latest']*100:.0f}%→{last['latest']*100:.0f}%")
     else:
         print(f"Opponent mix: latest={args.latest_prob}, builtin={args.builtin_prob}, pool(PFSP)={pool_prob:.1f}")
 
