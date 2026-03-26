@@ -261,6 +261,9 @@ def main():
     else:
         print(f"Opponent mix: latest={args.latest_prob}, builtin={args.builtin_prob}, pool(PFSP)={pool_prob:.1f}")
 
+    best_p1_builtin = -1.0
+    best_p2_builtin = -1.0
+
     for iteration in range(args.total_iterations):
         # --- Evaluate ---
         if iteration % args.eval_freq == 0:
@@ -303,6 +306,18 @@ def main():
 
             p1_logger.dump(step=step)
             p2_logger.dump(step=step)
+
+            # Best model 저장
+            p1_wr = matchups.get("p1_vs_builtin", {}).get("win_rate", 0)
+            p2_wr = matchups.get("p2_vs_builtin", {}).get("win_rate", 0)
+            if p1_wr > best_p1_builtin:
+                best_p1_builtin = p1_wr
+                p1_model.save(f"{args.save_dir}/p1/selfplay_best")
+                print(f"  [BEST] p1 vs builtin: {p1_wr*100:.0f}% (iter {iteration})", flush=True)
+            if p2_wr > best_p2_builtin:
+                best_p2_builtin = p2_wr
+                p2_model.save(f"{args.save_dir}/p2/selfplay_best")
+                print(f"  [BEST] p2 vs builtin: {p2_wr*100:.0f}% (iter {iteration})", flush=True)
 
         # --- Train ---
         latest_prob, builtin_prob = get_probs(iteration)
