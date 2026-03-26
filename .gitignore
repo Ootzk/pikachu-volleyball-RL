@@ -7,8 +7,7 @@ __pycache__/
 *.mp4
 
 # 학습 산출물
-models/checkpoints/
-models/exported/
+models/
 *.pt
 *.onnx
 wandb/
