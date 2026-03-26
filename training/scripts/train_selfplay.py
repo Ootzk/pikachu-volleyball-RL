@@ -89,11 +89,13 @@ def set_opponent_in_vecenv(vec_env, opponent_policy, is_builtin=False, side=None
 def _run_matchup(name, p1_player, p2_player, games, winning_score, perspective, rng):
     """단일 매치업 평가."""
     rounds_all = []
+    all_stats = []
     wins = 0
     truncated_total = 0
     for i in range(games):
         game_seed = int(rng.integers(0, 2**31))
         stats = play_game_detailed(p1_player, p2_player, winning_score=winning_score, seed=game_seed)
+        all_stats.append(stats)
         if stats.truncated_rallies > 0:
             truncated_total += stats.truncated_rallies
             print(f"  [WARN] {name} game {i}: truncated (seed={game_seed})", flush=True)
@@ -102,7 +104,7 @@ def _run_matchup(name, p1_player, p2_player, games, winning_score, perspective, 
         else:
             wins += 1 if stats.winner == "player_2" else 0
         rounds_all.extend(stats.rounds)
-    summary = _summarize(wins, games, rounds_all)
+    summary = _summarize(wins, games, rounds_all, all_stats, perspective)
     summary["truncated_rallies"] = truncated_total
     return name, summary
 
@@ -131,16 +133,25 @@ def evaluate_selfplay_detailed(p1_model, p2_model, games=20, winning_score=15, s
     return matchups
 
 
-def _summarize(wins, games, rounds):
+def _summarize(wins, games, rounds, all_stats, perspective):
     """매치 통계 요약."""
     p1_serve = [r for r in rounds if r.server == "player_1"]
     p2_serve = [r for r in rounds if r.server == "player_2"]
     rally_lengths = [r.rally_length for r in rounds]
 
+    if perspective == "p1":
+        avg_score = np.mean([s.p1_score for s in all_stats]) if all_stats else 0
+        avg_opp_score = np.mean([s.p2_score for s in all_stats]) if all_stats else 0
+    else:
+        avg_score = np.mean([s.p2_score for s in all_stats]) if all_stats else 0
+        avg_opp_score = np.mean([s.p1_score for s in all_stats]) if all_stats else 0
+
     return {
         "wins": wins,
         "losses": games - wins,
         "win_rate": wins / games,
+        "avg_score": float(avg_score),
+        "avg_opp_score": float(avg_opp_score),
         "p1_serve_win": sum(1 for r in p1_serve if r.winner == "player_1") / max(len(p1_serve), 1),
         "p2_serve_win": sum(1 for r in p2_serve if r.winner == "player_2") / max(len(p2_serve), 1),
         "avg_rally": np.mean(rally_lengths) if rally_lengths else 0,
@@ -237,9 +248,11 @@ def main():
             print(f"\n[Iter {iteration}/{args.total_iterations}, p1_step={step}]", flush=True)
             for match, s in matchups.items():
                 print(f"  {match}: {s['wins']}W {s['losses']}L ({s['win_rate']*100:.0f}%)"
+                      f"  득점: {s['avg_score']:.1f}-{s['avg_opp_score']:.1f}"
                       f"  서브: p1={s['p1_serve_win']*100:.0f}% p2={s['p2_serve_win']*100:.0f}%"
                       f"  랠리: {s['avg_rally']:.0f}", flush=True)
                 p1_logger.record(f"eval/{match}_winrate", s["win_rate"])
+                p1_logger.record(f"eval/{match}_avg_score", s["avg_score"])
                 p1_logger.record(f"eval/{match}_avg_rally", s["avg_rally"])
             p1_logger.dump(step=step)
 

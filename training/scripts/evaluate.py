@@ -36,15 +36,19 @@ def main():
         all_rounds = []
         p1_wins = 0
 
+        all_stats = []
         for _ in range(args.games):
             game_seed = int(rng.integers(0, 2**31))
             stats = play_game_detailed(p1, p2, winning_score=args.score, seed=game_seed)
+            all_stats.append(stats)
             result = 1 if stats.winner == "player_1" else 0
             p1_wins += result
             elos[p1.name], elos[p2.name] = update_elo(elos[p1.name], elos[p2.name], result)
             all_rounds.extend(stats.rounds)
 
         p2_wins = args.games - p1_wins
+        avg_p1_score = np.mean([s.p1_score for s in all_stats])
+        avg_p2_score = np.mean([s.p2_score for s in all_stats])
 
         # 서브별 득점 집계
         p1_serve = [r for r in all_rounds if r.server == "player_1"]
@@ -55,6 +59,7 @@ def main():
         print(f"  {p1.name} (p1) vs {p2.name} (p2)")
         print(f"{'=' * 60}")
         print(f"  승패: p1 {p1_wins}W {p2_wins}L ({p1_wins / args.games * 100:.0f}%)")
+        print(f"  평균 득점: p1 {avg_p1_score:.1f} - p2 {avg_p2_score:.1f}")
 
         # 서브별 득점 히트맵
         if p1_serve:
