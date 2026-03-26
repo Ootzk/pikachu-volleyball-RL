@@ -248,48 +248,9 @@ def main():
     else:
         print(f"Opponent mix: latest={args.latest_prob}, builtin={args.builtin_prob}, pool(PFSP)={pool_prob:.1f}")
 
-    # --- Baseline 평가 (학습 전) ---
-    print("\n[Baseline, p1_step=0]", flush=True)
-    baseline = evaluate_selfplay_detailed(p1_model, p2_model, games=args.eval_games, winning_score=15)
-    for match, s in baseline.items():
-        print(f"  {match}: {s['wins']}W {s['losses']}L ({s['win_rate']*100:.0f}%)"
-              f"  득점: {s['avg_score']:.1f}-{s['avg_opp_score']:.1f}"
-              f"  서브: p1={s['p1_serve_win']*100:.0f}% p2={s['p2_serve_win']*100:.0f}%"
-              f"  랠리: {s['avg_rally']:.0f}", flush=True)
-        p1_logger.record(f"eval/{match}_winrate", s["win_rate"])
-        p1_logger.record(f"eval/{match}_avg_score", s["avg_score"])
-        p1_logger.record(f"eval/{match}_avg_rally", s["avg_rally"])
-    p1_logger.dump(step=0)
-    print("-" * 44, flush=True)
-
     for iteration in range(args.total_iterations):
-        latest_prob, builtin_prob = get_probs(iteration)
-
-        # --- Train p1 against p2 opponent ---
-        opp_model, opp_name, is_builtin = pool_p2.sample_opponent(
-            p2_model, latest_prob, builtin_prob)
-        if is_builtin:
-            set_opponent_in_vecenv(p1_envs, None, is_builtin=True, side="player_1")
-        else:
-            set_opponent_in_vecenv(p1_envs, make_opponent_policy(opp_model), is_builtin=False, side="player_1")
-        p1_model.learn(total_timesteps=args.steps_per_iter, reset_num_timesteps=False)
-
-        # --- Train p2 against p1 opponent ---
-        opp_model, opp_name, is_builtin = pool_p1.sample_opponent(
-            p1_model, latest_prob, builtin_prob)
-        if is_builtin:
-            set_opponent_in_vecenv(p2_envs, None, is_builtin=True, side="player_2")
-        else:
-            set_opponent_in_vecenv(p2_envs, make_opponent_policy(opp_model), is_builtin=False, side="player_2")
-        p2_model.learn(total_timesteps=args.steps_per_iter, reset_num_timesteps=False)
-
-        # --- Save to pool ---
-        if iteration % args.save_interval == 0 and iteration > 0:
-            pool_p1.add_checkpoint(p1_model, iteration)
-            pool_p2.add_checkpoint(p2_model, iteration)
-
         # --- Evaluate ---
-        if iteration % args.eval_freq == args.eval_freq - 1:
+        if iteration % args.eval_freq == 0:
             p1_model.save(f"{args.save_dir}/p1/selfplay_latest")
             p2_model.save(f"{args.save_dir}/p2/selfplay_latest")
             matchups = evaluate_selfplay_detailed(
@@ -309,6 +270,32 @@ def main():
                 p1_logger.record(f"eval/{match}_avg_score", s["avg_score"])
                 p1_logger.record(f"eval/{match}_avg_rally", s["avg_rally"])
             p1_logger.dump(step=step)
+
+        # --- Train ---
+        latest_prob, builtin_prob = get_probs(iteration)
+
+        # Train p1 against p2 opponent
+        opp_model, opp_name, is_builtin = pool_p2.sample_opponent(
+            p2_model, latest_prob, builtin_prob)
+        if is_builtin:
+            set_opponent_in_vecenv(p1_envs, None, is_builtin=True, side="player_1")
+        else:
+            set_opponent_in_vecenv(p1_envs, make_opponent_policy(opp_model), is_builtin=False, side="player_1")
+        p1_model.learn(total_timesteps=args.steps_per_iter, reset_num_timesteps=False)
+
+        # Train p2 against p1 opponent
+        opp_model, opp_name, is_builtin = pool_p1.sample_opponent(
+            p1_model, latest_prob, builtin_prob)
+        if is_builtin:
+            set_opponent_in_vecenv(p2_envs, None, is_builtin=True, side="player_2")
+        else:
+            set_opponent_in_vecenv(p2_envs, make_opponent_policy(opp_model), is_builtin=False, side="player_2")
+        p2_model.learn(total_timesteps=args.steps_per_iter, reset_num_timesteps=False)
+
+        # --- Save to pool ---
+        if iteration % args.save_interval == 0 and iteration > 0:
+            pool_p1.add_checkpoint(p1_model, iteration)
+            pool_p2.add_checkpoint(p2_model, iteration)
 
     # 최종 모델 저장
     p1_model.save(f"{args.save_dir}/p1/selfplay_final")
