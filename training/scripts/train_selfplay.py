@@ -248,36 +248,6 @@ def main():
     p1_model.set_logger(p1_logger)
     p2_model.set_logger(p2_logger)
 
-    # Custom Scalars 레이아웃 (오버레이 차트)
-    from tensorboard.plugins.custom_scalars import layout_pb2
-    from torch.utils.tensorboard import SummaryWriter
-    for sub in ["p1", "p2"]:
-        writer = SummaryWriter(f"{args.tensorboard_log}/{sub}")
-        layout = layout_pb2.Layout(category=[
-            layout_pb2.Category(title="Winrate Comparison", chart=[
-                layout_pb2.Chart(title="vs Builtin & Random",
-                    multiline=layout_pb2.MultilineChartContent(
-                        tag=[r"eval/vs_builtin_winrate", r"eval/vs_random_winrate", r"eval/vs_p[12]_winrate"])),
-            ]),
-            layout_pb2.Category(title="Score Comparison", chart=[
-                layout_pb2.Chart(title="Avg Score vs Opponents",
-                    multiline=layout_pb2.MultilineChartContent(
-                        tag=[r"eval/vs_builtin_avg_score", r"eval/vs_random_avg_score", r"eval/vs_p[12]_avg_score"])),
-            ]),
-        ])
-        writer.file_writer.add_summary(layout_pb2.summary.pb(layout))
-        writer.close()
-    # common용
-    writer = SummaryWriter(f"{args.tensorboard_log}/common")
-    layout = layout_pb2.Layout(category=[
-        layout_pb2.Category(title="Curriculum", chart=[
-            layout_pb2.Chart(title="Opponent Mix",
-                multiline=layout_pb2.MultilineChartContent(
-                    tag=[r"curriculum/builtin_prob", r"curriculum/latest_prob", r"curriculum/pool_prob"])),
-        ]),
-    ])
-    writer.file_writer.add_summary(layout_pb2.summary.pb(layout))
-    writer.close()
 
     # 상대풀 (save_dir 내 checkpoints에 통합)
     pool_p1 = OpponentPool(f"{args.save_dir}/p1", "p1", max_pool_size=args.max_pool)
