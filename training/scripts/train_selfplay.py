@@ -86,8 +86,11 @@ def set_opponent_in_vecenv(vec_env, opponent_policy, is_builtin=False, side=None
             convert_env.set_opponent_policy(opponent_policy)
 
 
-def _run_matchup(name, p1_player, p2_player, games, winning_score, perspective, rng):
-    """단일 매치업 평가."""
+def _run_matchup(name, p1_spec, p2_spec, games, winning_score, perspective, seed):
+    """단일 매치업 평가 (spawn 워커에서 실행 가능 — pickle 가능한 인자만 받음)."""
+    rng = np.random.default_rng(seed)
+    p1_player = make_player(p1_spec)
+    p2_player = make_player(p2_spec)
     rounds_all = []
     all_stats = []
     wins = 0
@@ -98,7 +101,6 @@ def _run_matchup(name, p1_player, p2_player, games, winning_score, perspective, 
         all_stats.append(stats)
         if stats.truncated_rallies > 0:
             truncated_total += stats.truncated_rallies
-            print(f"  [WARN] {name} game {i}: truncated (seed={game_seed})", flush=True)
         if perspective == "p1":
             wins += 1 if stats.winner == "player_1" else 0
         else:
@@ -109,26 +111,36 @@ def _run_matchup(name, p1_player, p2_player, games, winning_score, perspective, 
     return name, summary
 
 
-def evaluate_selfplay_detailed(p1_model, p2_model, games=20, winning_score=15, seed=42):
-    """상세 통계 포함 평가 (모델 객체 직접 사용, 디스크 I/O 없음)."""
-    from training.utils.elo import Player
+def evaluate_selfplay_detailed(p1_model, p2_model, games=20, winning_score=15, seed=42, save_dir=None):
+    """상세 통계 포함 평가. 5매치업 병렬 실행 (spawn)."""
+    import multiprocessing as mp
+    from concurrent.futures import ProcessPoolExecutor
+
+    # eval 전에 save_dir에 저장된 모델 경로 사용
+    assert save_dir is not None, "save_dir required for parallel eval"
+    p1_path = f"{save_dir}/p1/selfplay_latest"
+    p2_path = f"{save_dir}/p2/selfplay_latest"
 
     rng = np.random.default_rng(seed)
-    p1 = Player("p1", "model", model=p1_model)
-    p2 = Player("p2", "model", model=p2_model)
-    random_p = Player("random", "random")
-    builtin_p = Player("builtin", "builtin")
+    matchup_defs = [
+        ("p1_vs_p2", p1_path, p2_path, "p1"),
+        ("p1_vs_random", p1_path, "random", "p1"),
+        ("p1_vs_builtin", p1_path, "builtin", "p1"),
+        ("p2_vs_random", "random", p2_path, "p2"),
+        ("p2_vs_builtin", "builtin", p2_path, "p2"),
+    ]
+    matchup_seeds = [int(rng.integers(0, 2**31)) for _ in matchup_defs]
 
+    ctx = mp.get_context("spawn")
     matchups = {}
-    for name, p1_player, p2_player, perspective in [
-        ("p1_vs_p2", p1, p2, "p1"),
-        ("p1_vs_random", p1, random_p, "p1"),
-        ("p1_vs_builtin", p1, builtin_p, "p1"),
-        ("p2_vs_random", random_p, p2, "p2"),
-        ("p2_vs_builtin", builtin_p, p2, "p2"),
-    ]:
-        name, summary = _run_matchup(name, p1_player, p2_player, games, winning_score, perspective, rng)
-        matchups[name] = summary
+    with ProcessPoolExecutor(max_workers=5, mp_context=ctx) as executor:
+        futures = {}
+        for (name, p1_spec, p2_spec, perspective), mseed in zip(matchup_defs, matchup_seeds):
+            fut = executor.submit(_run_matchup, name, p1_spec, p2_spec, games, winning_score, perspective, mseed)
+            futures[fut] = name
+        for fut in futures:
+            name, summary = fut.result()
+            matchups[name] = summary
 
     return matchups
 
@@ -289,6 +301,7 @@ def main():
                 p1_model, p2_model,
                 games=args.eval_games,
                 winning_score=15,
+                save_dir=args.save_dir,
             )
 
             step = p1_model.num_timesteps
