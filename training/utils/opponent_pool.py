@@ -31,10 +31,9 @@ class OpponentPool:
     - 나머지: 풀에서 PFSP 샘플링 (승률 낮은 상대 우선)
     """
 
-    def __init__(self, pool_dir, side, max_pool_size=50):
+    def __init__(self, pool_dir, side):
         self.pool_dir = pool_dir
         self.side = side
-        self.max_pool_size = max_pool_size
         self.checkpoints = []
         self.win_stats = {}  # {name: [wins, losses]}
         os.makedirs(pool_dir, exist_ok=True)
@@ -45,7 +44,6 @@ class OpponentPool:
         name = os.path.basename(path)
         self.checkpoints.append(path)
         self.win_stats[name] = [0, 0]
-        if len(self.checkpoints) > self.max_pool_size:
             self._prune()
         return path
 
@@ -94,23 +92,3 @@ class OpponentPool:
             weights.append(1.0 - win_rate + 0.1)  # +0.1로 최소 확률 보장
         return weights
 
-    def _prune(self):
-        """max_pool_size 초과 시 오래된 체크포인트 제거."""
-        if len(self.checkpoints) <= self.max_pool_size:
-            return
-        keep = set()
-        keep.add(0)
-        keep.add(len(self.checkpoints) - 1)
-        step = max(1, len(self.checkpoints) // self.max_pool_size)
-        for i in range(0, len(self.checkpoints), step):
-            keep.add(i)
-        new_checkpoints = []
-        for i, path in enumerate(self.checkpoints):
-            if i in keep and len(new_checkpoints) < self.max_pool_size:
-                new_checkpoints.append(path)
-            else:
-                name = os.path.basename(path)
-                self.win_stats.pop(name, None)
-                if os.path.exists(path + ".zip"):
-                    os.remove(path + ".zip")
-        self.checkpoints = new_checkpoints
