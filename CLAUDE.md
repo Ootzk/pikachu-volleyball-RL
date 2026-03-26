@@ -45,9 +45,15 @@
 ## Artifact 관리
 
 ### 실험 관리 (`experiments/`)
-- 실험 단위로 폴더 관리: `experiments/{번호}_{설명}/`
-- 각 폴더에 포함: `README.md` (설정/결과/교훈), 모델(`.zip`), 영상(`.mp4`), TensorBoard 로그
-- `README.md`만 Git에 커밋, 바이너리(`.zip`, `.mp4`)와 TensorBoard 이벤트는 `.gitignore`로 제외
+- `experiments/` 전체를 `.gitignore`로 제외 (로컬 전용)
+- 실험 단위로 폴더 관리, 네이밍 규칙:
+  - 학습 실험: `{번호}_train_{대상}_with_{상대}` (예: `001_train_p1_with_builtin`)
+  - 평가 실험: `{번호}_eval_{대상1}_vs_{대상2}` (예: `003_eval_001_vs_002`)
+- 폴더 내부 파일 규칙:
+  - `README.md`: 설정, 결과(서브별 통계 포함), 교훈
+  - `model.zip`: 학습된 모델 체크포인트
+  - `vs_{상대}.mp4`: 대전 영상 (상대만 표기, 예: `vs_builtin.mp4`, `001_vs_002.mp4`)
+  - `tensorboard/`: TensorBoard 로그
 - TensorBoard: `--tensorboard-log experiments/XXX/tensorboard`로 실험별 로깅
 - 여러 실험 비교: `uv run tensorboard --logdir experiments/`
 
