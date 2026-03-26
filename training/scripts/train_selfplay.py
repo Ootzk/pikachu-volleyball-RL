@@ -238,6 +238,8 @@ def main():
 
         # --- Evaluate ---
         if iteration % args.eval_freq == 0:
+            p1_model.save(f"{args.save_dir}/p1/selfplay_latest")
+            p2_model.save(f"{args.save_dir}/p2/selfplay_latest")
             matchups = evaluate_selfplay_detailed(
                 p1_model, p2_model,
                 games=args.eval_games,
