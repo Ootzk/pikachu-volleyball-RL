@@ -88,31 +88,41 @@ def set_opponent_in_vecenv(vec_env, opponent_policy, is_builtin=False, side=None
 
 def _eval_matchup(args):
     """단일 매치업 평가 (multiprocessing worker)."""
-    name, p1_spec, p2_spec, games, winning_score, perspective = args
+    name, p1_spec, p2_spec, games, winning_score, perspective, base_seed = args
     p1 = make_player(p1_spec)
     p2 = make_player(p2_spec)
+    rng = np.random.default_rng(base_seed)
     rounds_all = []
     wins = 0
-    for _ in range(games):
-        stats = play_game_detailed(p1, p2, winning_score=winning_score)
+    truncated_total = 0
+    for i in range(games):
+        game_seed = int(rng.integers(0, 2**31))
+        stats = play_game_detailed(p1, p2, winning_score=winning_score, seed=game_seed)
+        if stats.truncated_rallies > 0:
+            truncated_total += stats.truncated_rallies
+            print(f"  [WARN] {name} game {i}: {stats.truncated_rallies} truncated rallies (seed={game_seed})")
         if perspective == "p1":
             wins += 1 if stats.winner == "player_1" else 0
         else:
             wins += 1 if stats.winner == "player_2" else 0
         rounds_all.extend(stats.rounds)
-    return name, _summarize(wins, games, rounds_all)
+    summary = _summarize(wins, games, rounds_all)
+    summary["truncated_rallies"] = truncated_total
+    return name, summary
 
 
-def evaluate_selfplay_detailed(p1_path, p2_path, games=20, winning_score=15):
-    """상세 통계 포함 평가 (매치업 병렬 실행)."""
+def evaluate_selfplay_detailed(p1_path, p2_path, games=20, winning_score=15, seed=42):
+    """상세 통계 포함 평가 (매치업 병렬 실행, 시드 고정)."""
     from concurrent.futures import ProcessPoolExecutor
 
+    # 매치업별로 다른 시드 부여 (재현 가능)
+    rng = np.random.default_rng(seed)
     tasks = [
-        ("p1_vs_p2", p1_path, p2_path, games, winning_score, "p1"),
-        ("p1_vs_random", p1_path, "random", games, winning_score, "p1"),
-        ("p1_vs_builtin", p1_path, "builtin", games, winning_score, "p1"),
-        ("p2_vs_random", "random", p2_path, games, winning_score, "p2"),
-        ("p2_vs_builtin", "builtin", p2_path, games, winning_score, "p2"),
+        ("p1_vs_p2", p1_path, p2_path, games, winning_score, "p1", int(rng.integers(0, 2**31))),
+        ("p1_vs_random", p1_path, "random", games, winning_score, "p1", int(rng.integers(0, 2**31))),
+        ("p1_vs_builtin", p1_path, "builtin", games, winning_score, "p1", int(rng.integers(0, 2**31))),
+        ("p2_vs_random", "random", p2_path, games, winning_score, "p2", int(rng.integers(0, 2**31))),
+        ("p2_vs_builtin", "builtin", p2_path, games, winning_score, "p2", int(rng.integers(0, 2**31))),
     ]
 
     matchups = {}

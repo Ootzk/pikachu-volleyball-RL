@@ -21,9 +21,13 @@ class GameStats:
     p1_score: int = 0
     p2_score: int = 0
     rounds: list = field(default_factory=list)
+    truncated_rallies: int = 0
+    seed: int = None
 
     @property
     def winner(self):
+        if self.p1_score == self.p2_score:
+            return "draw"
         return "player_1" if self.p1_score > self.p2_score else "player_2"
 
     @property
@@ -51,8 +55,11 @@ class GameStats:
         return sum(r.rally_length for r in self.rounds) / len(self.rounds)
 
 
+MAX_RALLY_STEPS = 10000  # 무한 랠리 방지
+
+
 def play_game_detailed(p1, p2, winning_score=15, seed=None):
-    """상세 통계를 포함한 1판 수행."""
+    """상세 통계를 포함한 1판 수행. 라운드당 MAX_RALLY_STEPS 초과 시 무승부 처리."""
     is_p1_computer = p1.player_type == "builtin"
     is_p2_computer = p2.player_type == "builtin"
 
@@ -67,8 +74,10 @@ def play_game_detailed(p1, p2, winning_score=15, seed=None):
 
     obs, info = env.reset(seed=seed)
     stats = GameStats()
+    total_steps = 0
     rally_steps = 0
     current_server = "player_1"  # 첫 서브는 항상 p1
+    truncated_rallies = 0
 
     while env.agents:
         actions = {
@@ -77,6 +86,21 @@ def play_game_detailed(p1, p2, winning_score=15, seed=None):
         }
         obs, rewards, terminated, truncated, infos = env.step(actions)
         rally_steps += 1
+        total_steps += 1
+
+        # 무한 랠리 감지
+        if rally_steps >= MAX_RALLY_STEPS:
+            truncated_rallies += 1
+            stats.rounds.append(RoundStats(
+                server=current_server,
+                winner="draw",
+                rally_length=rally_steps,
+            ))
+            rally_steps = 0
+            # 게임 전체 max_steps 초과 시 강제 종료
+            if total_steps >= MAX_RALLY_STEPS * winning_score:
+                break
+            continue
 
         # 라운드 종료 감지 (보상이 0이 아니면 득점 발생)
         if rewards.get("player_1", 0) != 0:
@@ -90,11 +114,12 @@ def play_game_detailed(p1, p2, winning_score=15, seed=None):
                 stats.p1_score += 1
             else:
                 stats.p2_score += 1
-            # 다음 서브: 득점한 쪽 (serve="winner")
             current_server = round_winner
             rally_steps = 0
 
     env.close()
+    stats.truncated_rallies = truncated_rallies
+    stats.seed = seed
     return stats
 
 
