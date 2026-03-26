@@ -230,16 +230,16 @@ def main():
                 winning_score=15,
             )
 
-            # 출력 + 로깅
-            total_steps = (iteration + 1) * args.steps_per_iter * 2
-            print(f"\n[Iter {iteration}/{args.total_iterations}, {total_steps} total steps]")
+            # 출력 + 로깅 (step을 SB3 내부 카운터에 맞춤)
+            step = p1_model.num_timesteps
+            print(f"\n[Iter {iteration}/{args.total_iterations}, p1_step={step}]")
             for match, s in matchups.items():
                 print(f"  {match}: {s['wins']}W {s['losses']}L ({s['win_rate']*100:.0f}%)"
                       f"  서브: p1={s['p1_serve_win']*100:.0f}% p2={s['p2_serve_win']*100:.0f}%"
                       f"  랠리: {s['avg_rally']:.0f}")
                 p1_logger.record(f"eval/{match}_winrate", s["win_rate"])
                 p1_logger.record(f"eval/{match}_avg_rally", s["avg_rally"])
-            p1_logger.dump(step=total_steps)
+            p1_logger.dump(step=step)
 
     # 최종 모델 저장
     p1_model.save(f"{args.save_dir}/p1/selfplay_final")
