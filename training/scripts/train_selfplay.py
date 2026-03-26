@@ -94,15 +94,26 @@ def main():
     parser.add_argument("--max-pool", type=int, default=50)
     parser.add_argument("--tensorboard-log", default="tensorboard_logs/selfplay")
     parser.add_argument("--save-dir", default="models/checkpoints")
+    parser.add_argument("--p1-init", default=None, help="Pretrained p1 model path")
+    parser.add_argument("--p2-init", default=None, help="Pretrained p2 model path")
     args = parser.parse_args()
 
     # 환경 생성 (DummyVecEnv)
     p1_envs = DummyVecEnv([make_selfplay_env(i, "player_1", args.seed) for i in range(args.num_envs)])
     p2_envs = DummyVecEnv([make_selfplay_env(i, "player_2", args.seed + 100) for i in range(args.num_envs)])
 
-    # 모델 초기화
-    p1_model = PPO("MlpPolicy", p1_envs, device="cpu", verbose=0, seed=args.seed)
-    p2_model = PPO("MlpPolicy", p2_envs, device="cpu", verbose=0, seed=args.seed + 1)
+    # 모델 초기화 (pretrained 모델이 있으면 로드)
+    if args.p1_init:
+        p1_model = PPO.load(args.p1_init, env=p1_envs, device="cpu", seed=args.seed)
+        print(f"Loaded p1 from {args.p1_init}")
+    else:
+        p1_model = PPO("MlpPolicy", p1_envs, device="cpu", verbose=0, seed=args.seed)
+
+    if args.p2_init:
+        p2_model = PPO.load(args.p2_init, env=p2_envs, device="cpu", seed=args.seed + 1)
+        print(f"Loaded p2 from {args.p2_init}")
+    else:
+        p2_model = PPO("MlpPolicy", p2_envs, device="cpu", verbose=0, seed=args.seed + 1)
 
     # TensorBoard 로거
     p1_logger = configure(f"{args.tensorboard_log}/p1", ["tensorboard", "stdout"])
