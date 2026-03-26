@@ -225,8 +225,8 @@ def main():
             pool_p1.add_checkpoint(p1_model, iteration)
             pool_p2.add_checkpoint(p2_model, iteration)
 
-        # --- Evaluate (skip iter 0) ---
-        if iteration > 0 and iteration % args.eval_freq == 0:
+        # --- Evaluate ---
+        if iteration % args.eval_freq == 0:
             matchups = evaluate_selfplay_detailed(
                 p1_model, p2_model,
                 games=args.eval_games,
