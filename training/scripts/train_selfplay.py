@@ -256,6 +256,10 @@ def main():
               f"  득점: {s['avg_score']:.1f}-{s['avg_opp_score']:.1f}"
               f"  서브: p1={s['p1_serve_win']*100:.0f}% p2={s['p2_serve_win']*100:.0f}%"
               f"  랠리: {s['avg_rally']:.0f}", flush=True)
+        p1_logger.record(f"eval/{match}_winrate", s["win_rate"])
+        p1_logger.record(f"eval/{match}_avg_score", s["avg_score"])
+        p1_logger.record(f"eval/{match}_avg_rally", s["avg_rally"])
+    p1_logger.dump(step=0)
     print("-" * 44, flush=True)
 
     for iteration in range(args.total_iterations):
