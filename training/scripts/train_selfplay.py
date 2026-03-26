@@ -86,42 +86,39 @@ def set_opponent_in_vecenv(vec_env, opponent_policy, is_builtin=False, side=None
             convert_env.set_opponent_policy(opponent_policy)
 
 
-def evaluate_selfplay_detailed(p1_path, p2_path, games=20, winning_score=15):
-    """상세 통계 포함 평가."""
-    matchups = {}
-
-    # p1 vs p2
-    p1 = make_player(p1_path)
-    p2 = make_player(p2_path)
+def _eval_matchup(args):
+    """단일 매치업 평가 (multiprocessing worker)."""
+    name, p1_spec, p2_spec, games, winning_score, perspective = args
+    p1 = make_player(p1_spec)
+    p2 = make_player(p2_spec)
     rounds_all = []
-    p1_wins = 0
+    wins = 0
     for _ in range(games):
         stats = play_game_detailed(p1, p2, winning_score=winning_score)
-        p1_wins += 1 if stats.winner == "player_1" else 0
-        rounds_all.extend(stats.rounds)
-    matchups["p1_vs_p2"] = _summarize(p1_wins, games, rounds_all)
-
-    # p1 vs baselines
-    for opp_name in ("random", "builtin"):
-        opp = make_player(opp_name)
-        rounds_all = []
-        wins = 0
-        for _ in range(games):
-            stats = play_game_detailed(p1, opp, winning_score=winning_score)
+        if perspective == "p1":
             wins += 1 if stats.winner == "player_1" else 0
-            rounds_all.extend(stats.rounds)
-        matchups[f"p1_vs_{opp_name}"] = _summarize(wins, games, rounds_all)
-
-    # p2 vs baselines
-    for opp_name in ("random", "builtin"):
-        opp = make_player(opp_name)
-        rounds_all = []
-        wins = 0
-        for _ in range(games):
-            stats = play_game_detailed(opp, p2, winning_score=winning_score)
+        else:
             wins += 1 if stats.winner == "player_2" else 0
-            rounds_all.extend(stats.rounds)
-        matchups[f"p2_vs_{opp_name}"] = _summarize(wins, games, rounds_all)
+        rounds_all.extend(stats.rounds)
+    return name, _summarize(wins, games, rounds_all)
+
+
+def evaluate_selfplay_detailed(p1_path, p2_path, games=20, winning_score=15):
+    """상세 통계 포함 평가 (매치업 병렬 실행)."""
+    from concurrent.futures import ProcessPoolExecutor
+
+    tasks = [
+        ("p1_vs_p2", p1_path, p2_path, games, winning_score, "p1"),
+        ("p1_vs_random", p1_path, "random", games, winning_score, "p1"),
+        ("p1_vs_builtin", p1_path, "builtin", games, winning_score, "p1"),
+        ("p2_vs_random", "random", p2_path, games, winning_score, "p2"),
+        ("p2_vs_builtin", "builtin", p2_path, games, winning_score, "p2"),
+    ]
+
+    matchups = {}
+    with ProcessPoolExecutor(max_workers=5) as executor:
+        for name, summary in executor.map(_eval_matchup, tasks):
+            matchups[name] = summary
 
     return matchups
 
