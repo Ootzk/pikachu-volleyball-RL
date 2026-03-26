@@ -86,20 +86,17 @@ def set_opponent_in_vecenv(vec_env, opponent_policy, is_builtin=False, side=None
             convert_env.set_opponent_policy(opponent_policy)
 
 
-def _eval_matchup(name, p1_spec, p2_spec, games, winning_score, perspective, base_seed):
+def _run_matchup(name, p1_player, p2_player, games, winning_score, perspective, rng):
     """단일 매치업 평가."""
-    p1 = make_player(p1_spec)
-    p2 = make_player(p2_spec)
-    rng = np.random.default_rng(base_seed)
     rounds_all = []
     wins = 0
     truncated_total = 0
     for i in range(games):
         game_seed = int(rng.integers(0, 2**31))
-        stats = play_game_detailed(p1, p2, winning_score=winning_score, seed=game_seed)
+        stats = play_game_detailed(p1_player, p2_player, winning_score=winning_score, seed=game_seed)
         if stats.truncated_rallies > 0:
             truncated_total += stats.truncated_rallies
-            print(f"  [WARN] {name} game {i}: {stats.truncated_rallies} truncated rallies (seed={game_seed})")
+            print(f"  [WARN] {name} game {i}: truncated (seed={game_seed})", flush=True)
         if perspective == "p1":
             wins += 1 if stats.winner == "player_1" else 0
         else:
@@ -110,20 +107,25 @@ def _eval_matchup(name, p1_spec, p2_spec, games, winning_score, perspective, bas
     return name, summary
 
 
-def evaluate_selfplay_detailed(p1_path, p2_path, games=20, winning_score=15, seed=42):
-    """상세 통계 포함 평가 (순차 실행, 시드 고정)."""
+def evaluate_selfplay_detailed(p1_model, p2_model, games=20, winning_score=15, seed=42):
+    """상세 통계 포함 평가 (모델 객체 직접 사용, 디스크 I/O 없음)."""
+    from training.utils.elo import Player
+
     rng = np.random.default_rng(seed)
-    tasks = [
-        ("p1_vs_p2", p1_path, p2_path, games, winning_score, "p1", int(rng.integers(0, 2**31))),
-        ("p1_vs_random", p1_path, "random", games, winning_score, "p1", int(rng.integers(0, 2**31))),
-        ("p1_vs_builtin", p1_path, "builtin", games, winning_score, "p1", int(rng.integers(0, 2**31))),
-        ("p2_vs_random", "random", p2_path, games, winning_score, "p2", int(rng.integers(0, 2**31))),
-        ("p2_vs_builtin", "builtin", p2_path, games, winning_score, "p2", int(rng.integers(0, 2**31))),
-    ]
+    p1 = Player("p1", "model", model=p1_model)
+    p2 = Player("p2", "model", model=p2_model)
+    random_p = Player("random", "random")
+    builtin_p = Player("builtin", "builtin")
 
     matchups = {}
-    for task in tasks:
-        name, summary = _eval_matchup(*task)
+    for name, p1_player, p2_player, perspective in [
+        ("p1_vs_p2", p1, p2, "p1"),
+        ("p1_vs_random", p1, random_p, "p1"),
+        ("p1_vs_builtin", p1, builtin_p, "p1"),
+        ("p2_vs_random", random_p, p2, "p2"),
+        ("p2_vs_builtin", builtin_p, p2, "p2"),
+    ]:
+        name, summary = _run_matchup(name, p1_player, p2_player, games, winning_score, perspective, rng)
         matchups[name] = summary
 
     return matchups
@@ -200,10 +202,6 @@ def main():
     print(f"Opponent mix: latest={args.latest_prob}, builtin={args.builtin_prob}, pool(PFSP)={pool_prob:.1f}")
 
     for iteration in range(args.total_iterations):
-        # 누적 목표 스텝 계산
-        p1_target = p1_model.num_timesteps + args.steps_per_iter
-        p2_target = p2_model.num_timesteps + args.steps_per_iter
-
         # --- Train p1 against p2 opponent ---
         opp_model, opp_name, is_builtin = pool_p2.sample_opponent(
             p2_model, args.latest_prob, args.builtin_prob)
@@ -211,7 +209,7 @@ def main():
             set_opponent_in_vecenv(p1_envs, None, is_builtin=True, side="player_1")
         else:
             set_opponent_in_vecenv(p1_envs, make_opponent_policy(opp_model), is_builtin=False, side="player_1")
-        p1_model.learn(total_timesteps=p1_target, reset_num_timesteps=False)
+        p1_model.learn(total_timesteps=args.steps_per_iter, reset_num_timesteps=False)
 
         # --- Train p2 against p1 opponent ---
         opp_model, opp_name, is_builtin = pool_p1.sample_opponent(
@@ -220,7 +218,7 @@ def main():
             set_opponent_in_vecenv(p2_envs, None, is_builtin=True, side="player_2")
         else:
             set_opponent_in_vecenv(p2_envs, make_opponent_policy(opp_model), is_builtin=False, side="player_2")
-        p2_model.learn(total_timesteps=p2_target, reset_num_timesteps=False)
+        p2_model.learn(total_timesteps=args.steps_per_iter, reset_num_timesteps=False)
 
         # --- Save to pool ---
         if iteration % args.save_interval == 0 and iteration > 0:
@@ -229,23 +227,18 @@ def main():
 
         # --- Evaluate (skip iter 0) ---
         if iteration > 0 and iteration % args.eval_freq == 0:
-            p1_model.save(f"{args.save_dir}/p1/selfplay_latest")
-            p2_model.save(f"{args.save_dir}/p2/selfplay_latest")
-
             matchups = evaluate_selfplay_detailed(
-                f"{args.save_dir}/p1/selfplay_latest",
-                f"{args.save_dir}/p2/selfplay_latest",
+                p1_model, p2_model,
                 games=args.eval_games,
                 winning_score=15,
             )
 
-            # 출력 + 로깅 (step을 SB3 내부 카운터에 맞춤)
             step = p1_model.num_timesteps
-            print(f"\n[Iter {iteration}/{args.total_iterations}, p1_step={step}]")
+            print(f"\n[Iter {iteration}/{args.total_iterations}, p1_step={step}]", flush=True)
             for match, s in matchups.items():
                 print(f"  {match}: {s['wins']}W {s['losses']}L ({s['win_rate']*100:.0f}%)"
                       f"  서브: p1={s['p1_serve_win']*100:.0f}% p2={s['p2_serve_win']*100:.0f}%"
-                      f"  랠리: {s['avg_rally']:.0f}")
+                      f"  랠리: {s['avg_rally']:.0f}", flush=True)
                 p1_logger.record(f"eval/{match}_winrate", s["win_rate"])
                 p1_logger.record(f"eval/{match}_avg_rally", s["avg_rally"])
             p1_logger.dump(step=step)
