@@ -86,9 +86,8 @@ def set_opponent_in_vecenv(vec_env, opponent_policy, is_builtin=False, side=None
             convert_env.set_opponent_policy(opponent_policy)
 
 
-def _eval_matchup(args):
-    """단일 매치업 평가 (multiprocessing worker)."""
-    name, p1_spec, p2_spec, games, winning_score, perspective, base_seed = args
+def _eval_matchup(name, p1_spec, p2_spec, games, winning_score, perspective, base_seed):
+    """단일 매치업 평가."""
     p1 = make_player(p1_spec)
     p2 = make_player(p2_spec)
     rng = np.random.default_rng(base_seed)
@@ -112,10 +111,7 @@ def _eval_matchup(args):
 
 
 def evaluate_selfplay_detailed(p1_path, p2_path, games=20, winning_score=15, seed=42):
-    """상세 통계 포함 평가 (매치업 병렬 실행, 시드 고정)."""
-    from concurrent.futures import ProcessPoolExecutor
-
-    # 매치업별로 다른 시드 부여 (재현 가능)
+    """상세 통계 포함 평가 (순차 실행, 시드 고정)."""
     rng = np.random.default_rng(seed)
     tasks = [
         ("p1_vs_p2", p1_path, p2_path, games, winning_score, "p1", int(rng.integers(0, 2**31))),
@@ -126,9 +122,9 @@ def evaluate_selfplay_detailed(p1_path, p2_path, games=20, winning_score=15, see
     ]
 
     matchups = {}
-    with ProcessPoolExecutor(max_workers=5) as executor:
-        for name, summary in executor.map(_eval_matchup, tasks):
-            matchups[name] = summary
+    for task in tasks:
+        name, summary = _eval_matchup(*task)
+        matchups[name] = summary
 
     return matchups
 
