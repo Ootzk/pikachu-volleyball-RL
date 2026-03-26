@@ -248,6 +248,16 @@ def main():
     else:
         print(f"Opponent mix: latest={args.latest_prob}, builtin={args.builtin_prob}, pool(PFSP)={pool_prob:.1f}")
 
+    # --- Baseline 평가 (학습 전) ---
+    print("\n[Baseline, p1_step=0]", flush=True)
+    baseline = evaluate_selfplay_detailed(p1_model, p2_model, games=args.eval_games, winning_score=15)
+    for match, s in baseline.items():
+        print(f"  {match}: {s['wins']}W {s['losses']}L ({s['win_rate']*100:.0f}%)"
+              f"  득점: {s['avg_score']:.1f}-{s['avg_opp_score']:.1f}"
+              f"  서브: p1={s['p1_serve_win']*100:.0f}% p2={s['p2_serve_win']*100:.0f}%"
+              f"  랠리: {s['avg_rally']:.0f}", flush=True)
+    print("-" * 44, flush=True)
+
     for iteration in range(args.total_iterations):
         latest_prob, builtin_prob = get_probs(iteration)
 
