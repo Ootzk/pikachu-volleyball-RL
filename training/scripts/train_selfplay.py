@@ -166,6 +166,8 @@ def main():
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--latest-prob", type=float, default=0.5)
     parser.add_argument("--builtin-prob", type=float, default=0.2)
+    parser.add_argument("--curriculum", action="store_true",
+                        help="Dynamic curriculum: builtin 60%%→20%% over training")
     parser.add_argument("--save-interval", type=int, default=5)
     parser.add_argument("--eval-freq", type=int, default=10)
     parser.add_argument("--eval-games", type=int, default=20)
@@ -177,7 +179,19 @@ def main():
     parser.add_argument("--p2-init", default=None, help="Pretrained p2 model path")
     args = parser.parse_args()
 
-    pool_prob = 1.0 - args.latest_prob - args.builtin_prob
+    def get_probs(iteration):
+        """커리큘럼 또는 고정 비율 반환: (latest_prob, builtin_prob)."""
+        if not args.curriculum:
+            return args.latest_prob, args.builtin_prob
+        progress = iteration / max(args.total_iterations - 1, 1)
+        # builtin: 0.6 → 0.2 (linear decay)
+        builtin = 0.6 - 0.4 * progress
+        # latest: 0.3 → 0.5
+        latest = 0.3 + 0.2 * progress
+        return latest, builtin
+
+    initial_latest, initial_builtin = get_probs(0)
+    pool_prob = 1.0 - initial_latest - initial_builtin
     assert pool_prob >= 0, "latest_prob + builtin_prob must be <= 1.0"
 
     # 환경 생성 (DummyVecEnv)
@@ -210,12 +224,17 @@ def main():
 
     print(f"Self-play training: {args.total_iterations} iterations x {args.steps_per_iter} steps")
     print(f"Envs: {args.num_envs} (DummyVecEnv)")
-    print(f"Opponent mix: latest={args.latest_prob}, builtin={args.builtin_prob}, pool(PFSP)={pool_prob:.1f}")
+    if args.curriculum:
+        print(f"Curriculum: builtin 60%→20%, latest 30%→50%, pool 10%→30%")
+    else:
+        print(f"Opponent mix: latest={args.latest_prob}, builtin={args.builtin_prob}, pool(PFSP)={pool_prob:.1f}")
 
     for iteration in range(args.total_iterations):
+        latest_prob, builtin_prob = get_probs(iteration)
+
         # --- Train p1 against p2 opponent ---
         opp_model, opp_name, is_builtin = pool_p2.sample_opponent(
-            p2_model, args.latest_prob, args.builtin_prob)
+            p2_model, latest_prob, builtin_prob)
         if is_builtin:
             set_opponent_in_vecenv(p1_envs, None, is_builtin=True, side="player_1")
         else:
@@ -224,7 +243,7 @@ def main():
 
         # --- Train p2 against p1 opponent ---
         opp_model, opp_name, is_builtin = pool_p1.sample_opponent(
-            p1_model, args.latest_prob, args.builtin_prob)
+            p1_model, latest_prob, builtin_prob)
         if is_builtin:
             set_opponent_in_vecenv(p2_envs, None, is_builtin=True, side="player_2")
         else:
