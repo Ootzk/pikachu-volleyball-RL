@@ -55,7 +55,8 @@ class GameStats:
         return sum(r.rally_length for r in self.rounds) / len(self.rounds)
 
 
-MAX_RALLY_STEPS = 10000  # 무한 랠리 방지
+MAX_RALLY_STEPS = 3000   # 라운드당 최대 스텝 (무한 랠리 방지)
+MAX_GAME_STEPS = 30000   # 게임 전체 최대 스텝
 
 
 def play_game_detailed(p1, p2, winning_score=15, seed=None):
@@ -88,7 +89,12 @@ def play_game_detailed(p1, p2, winning_score=15, seed=None):
         rally_steps += 1
         total_steps += 1
 
-        # 무한 랠리 감지
+        # 게임 전체 max_steps 초과 시 강제 종료
+        if total_steps >= MAX_GAME_STEPS:
+            truncated_rallies += 1
+            break
+
+        # 무한 랠리 감지 (라운드 단위)
         if rally_steps >= MAX_RALLY_STEPS:
             truncated_rallies += 1
             stats.rounds.append(RoundStats(
@@ -97,9 +103,6 @@ def play_game_detailed(p1, p2, winning_score=15, seed=None):
                 rally_length=rally_steps,
             ))
             rally_steps = 0
-            # 게임 전체 max_steps 초과 시 강제 종료
-            if total_steps >= MAX_RALLY_STEPS * winning_score:
-                break
             continue
 
         # 라운드 종료 감지 (보상이 0이 아니면 득점 발생)

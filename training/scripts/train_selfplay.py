@@ -227,8 +227,8 @@ def main():
             pool_p1.add_checkpoint(p1_model, iteration)
             pool_p2.add_checkpoint(p2_model, iteration)
 
-        # --- Evaluate ---
-        if iteration % args.eval_freq == 0:
+        # --- Evaluate (skip iter 0) ---
+        if iteration > 0 and iteration % args.eval_freq == 0:
             p1_model.save(f"{args.save_dir}/p1/selfplay_latest")
             p2_model.save(f"{args.save_dir}/p2/selfplay_latest")
 
