@@ -200,6 +200,10 @@ def main():
     print(f"Opponent mix: latest={args.latest_prob}, builtin={args.builtin_prob}, pool(PFSP)={pool_prob:.1f}")
 
     for iteration in range(args.total_iterations):
+        # 누적 목표 스텝 계산
+        p1_target = p1_model.num_timesteps + args.steps_per_iter
+        p2_target = p2_model.num_timesteps + args.steps_per_iter
+
         # --- Train p1 against p2 opponent ---
         opp_model, opp_name, is_builtin = pool_p2.sample_opponent(
             p2_model, args.latest_prob, args.builtin_prob)
@@ -207,7 +211,7 @@ def main():
             set_opponent_in_vecenv(p1_envs, None, is_builtin=True, side="player_1")
         else:
             set_opponent_in_vecenv(p1_envs, make_opponent_policy(opp_model), is_builtin=False, side="player_1")
-        p1_model.learn(total_timesteps=args.steps_per_iter, reset_num_timesteps=False)
+        p1_model.learn(total_timesteps=p1_target, reset_num_timesteps=False)
 
         # --- Train p2 against p1 opponent ---
         opp_model, opp_name, is_builtin = pool_p1.sample_opponent(
@@ -216,7 +220,7 @@ def main():
             set_opponent_in_vecenv(p2_envs, None, is_builtin=True, side="player_2")
         else:
             set_opponent_in_vecenv(p2_envs, make_opponent_policy(opp_model), is_builtin=False, side="player_2")
-        p2_model.learn(total_timesteps=args.steps_per_iter, reset_num_timesteps=False)
+        p2_model.learn(total_timesteps=p2_target, reset_num_timesteps=False)
 
         # --- Save to pool ---
         if iteration % args.save_interval == 0 and iteration > 0:
