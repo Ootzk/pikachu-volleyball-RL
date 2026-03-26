@@ -232,6 +232,7 @@ def main():
     # TensorBoard 로거
     p1_logger = configure(f"{args.tensorboard_log}/p1", ["tensorboard", "stdout"])
     p2_logger = configure(f"{args.tensorboard_log}/p2", ["tensorboard", "stdout"])
+    common_logger = configure(f"{args.tensorboard_log}/common", ["tensorboard"])
     p1_model.set_logger(p1_logger)
     p2_model.set_logger(p2_logger)
 
@@ -266,19 +267,39 @@ def main():
                       f"  득점: {s['avg_score']:.1f}-{s['avg_opp_score']:.1f}"
                       f"  서브: p1={s['p1_serve_win']*100:.0f}% p2={s['p2_serve_win']*100:.0f}%"
                       f"  랠리: {s['avg_rally']:.0f}", flush=True)
-                p1_logger.record(f"eval/{match}_winrate", s["win_rate"])
-                p1_logger.record(f"eval/{match}_avg_score", s["avg_score"])
-                p1_logger.record(f"eval/{match}_avg_rally", s["avg_rally"])
+
+                # p1 관점 매치 → p1_logger
+                if match.startswith("p1_vs_"):
+                    opponent = match[len("p1_vs_"):]
+                    p1_logger.record(f"eval/vs_{opponent}_winrate", s["win_rate"])
+                    p1_logger.record(f"eval/vs_{opponent}_avg_score", s["avg_score"])
+                    p1_logger.record(f"eval/vs_{opponent}_avg_rally", s["avg_rally"])
+
+                # p2 관점 매치 → p2_logger
+                if match.startswith("p2_vs_"):
+                    opponent = match[len("p2_vs_"):]
+                    p2_logger.record(f"eval/vs_{opponent}_winrate", s["win_rate"])
+                    p2_logger.record(f"eval/vs_{opponent}_avg_score", s["avg_score"])
+                    p2_logger.record(f"eval/vs_{opponent}_avg_rally", s["avg_rally"])
+
+                # p1_vs_p2는 양쪽 관점 모두 기록
+                if match == "p1_vs_p2":
+                    p2_logger.record("eval/vs_p1_winrate", 1.0 - s["win_rate"])
+                    p2_logger.record("eval/vs_p1_avg_score", s["avg_opp_score"])
+                    p2_logger.record("eval/vs_p1_avg_rally", s["avg_rally"])
+
             p1_logger.dump(step=step)
+            p2_logger.dump(step=step)
 
         # --- Train ---
         latest_prob, builtin_prob = get_probs(iteration)
         pool_prob = 1.0 - latest_prob - builtin_prob
 
         # 커리큘럼 메타데이터 로깅
-        p1_logger.record("curriculum/builtin_prob", builtin_prob)
-        p1_logger.record("curriculum/latest_prob", latest_prob)
-        p1_logger.record("curriculum/pool_prob", pool_prob)
+        common_logger.record("curriculum/builtin_prob", builtin_prob)
+        common_logger.record("curriculum/latest_prob", latest_prob)
+        common_logger.record("curriculum/pool_prob", pool_prob)
+        common_logger.dump(step=p1_model.num_timesteps)
 
         # Train p1 against p2 opponent
         opp_model, opp_name, is_builtin = pool_p2.sample_opponent(
