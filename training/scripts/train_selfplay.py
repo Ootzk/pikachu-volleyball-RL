@@ -285,7 +285,7 @@ def main():
             pool_p2.add_checkpoint(p2_model, iteration)
 
         # --- Evaluate ---
-        if iteration % args.eval_freq == 0:
+        if iteration % args.eval_freq == args.eval_freq - 1:
             p1_model.save(f"{args.save_dir}/p1/selfplay_latest")
             p2_model.save(f"{args.save_dir}/p2/selfplay_latest")
             matchups = evaluate_selfplay_detailed(
