@@ -273,6 +273,12 @@ def main():
 
         # --- Train ---
         latest_prob, builtin_prob = get_probs(iteration)
+        pool_prob = 1.0 - latest_prob - builtin_prob
+
+        # 커리큘럼 메타데이터 로깅
+        p1_logger.record("curriculum/builtin_prob", builtin_prob)
+        p1_logger.record("curriculum/latest_prob", latest_prob)
+        p1_logger.record("curriculum/pool_prob", pool_prob)
 
         # Train p1 against p2 opponent
         opp_model, opp_name, is_builtin = pool_p2.sample_opponent(

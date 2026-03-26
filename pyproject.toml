@@ -11,7 +11,6 @@ dependencies = [
     "gymnasium",
     "numpy",
     "pygame>=2.3.0",
-    "moviepy>=1.0.0",
     "tensorboard>=2.20.0",
     "setuptools<82",  # tensorboard requires pkg_resources, removed in setuptools 82
 ]
