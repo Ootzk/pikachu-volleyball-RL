@@ -173,7 +173,7 @@ def main():
     parser.add_argument("--eval-games", type=int, default=20)
     parser.add_argument("--max-pool", type=int, default=50)
     parser.add_argument("--tensorboard-log", default="tensorboard_logs/selfplay")
-    parser.add_argument("--save-dir", default="models/checkpoints")
+    parser.add_argument("--save-dir", required=True, help="Directory for checkpoints and opponent pool")
     parser.add_argument("--ent-coef", type=float, default=0.01, help="Entropy coefficient for exploration")
     parser.add_argument("--p1-init", default=None, help="Pretrained p1 model path")
     parser.add_argument("--p2-init", default=None, help="Pretrained p2 model path")
@@ -267,9 +267,9 @@ def main():
     writer.file_writer.add_summary(layout_pb2.summary.pb(layout))
     writer.close()
 
-    # 상대풀
-    pool_p1 = OpponentPool("models/pool/p1", "p1", max_pool_size=args.max_pool)
-    pool_p2 = OpponentPool("models/pool/p2", "p2", max_pool_size=args.max_pool)
+    # 상대풀 (save_dir 내 checkpoints에 통합)
+    pool_p1 = OpponentPool(f"{args.save_dir}/p1", "p1", max_pool_size=args.max_pool)
+    pool_p2 = OpponentPool(f"{args.save_dir}/p2", "p2", max_pool_size=args.max_pool)
 
     print(f"Self-play training: {args.total_iterations} iterations x {args.steps_per_iter} steps")
     print(f"Envs: {args.num_envs} (DummyVecEnv)")
