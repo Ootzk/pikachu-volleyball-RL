@@ -207,26 +207,30 @@ def main():
         with open(args.adaptive) as f:
             adaptive_config = json.load(f)
 
-    current_builtin_winrate = 0.0  # adaptive 모드용
+    p1_builtin_winrate = 0.0  # adaptive 모드용
+    p2_builtin_winrate = 0.0
 
-    def get_probs(iteration):
+    def _adaptive_probs(winrate):
+        """adaptive 승률 기반 비율 계산."""
+        thresholds = adaptive_config["thresholds"]
+        if winrate <= thresholds[0]["winrate"]:
+            return thresholds[0]["latest"], thresholds[0]["builtin"]
+        if winrate >= thresholds[-1]["winrate"]:
+            return thresholds[-1]["latest"], thresholds[-1]["builtin"]
+        for i in range(len(thresholds) - 1):
+            a, b = thresholds[i], thresholds[i + 1]
+            if a["winrate"] <= winrate <= b["winrate"]:
+                t = (winrate - a["winrate"]) / (b["winrate"] - a["winrate"])
+                builtin = a["builtin"] + t * (b["builtin"] - a["builtin"])
+                latest = a["latest"] + t * (b["latest"] - a["latest"])
+                return latest, builtin
+        return thresholds[-1]["latest"], thresholds[-1]["builtin"]
+
+    def get_probs(iteration, side="p1"):
         """커리큘럼 또는 고정 비율 반환: (latest_prob, builtin_prob)."""
-        nonlocal current_builtin_winrate
-
         if adaptive_config:
-            wr = current_builtin_winrate
-            thresholds = adaptive_config["thresholds"]
-            if wr <= thresholds[0]["winrate"]:
-                return thresholds[0]["latest"], thresholds[0]["builtin"]
-            if wr >= thresholds[-1]["winrate"]:
-                return thresholds[-1]["latest"], thresholds[-1]["builtin"]
-            for i in range(len(thresholds) - 1):
-                a, b = thresholds[i], thresholds[i + 1]
-                if a["winrate"] <= wr <= b["winrate"]:
-                    t = (wr - a["winrate"]) / (b["winrate"] - a["winrate"])
-                    builtin = a["builtin"] + t * (b["builtin"] - a["builtin"])
-                    latest = a["latest"] + t * (b["latest"] - a["latest"])
-                    return latest, builtin
+            wr = p1_builtin_winrate if side == "p1" else p2_builtin_winrate
+            return _adaptive_probs(wr)
             return thresholds[-1]["latest"], thresholds[-1]["builtin"]
 
         if curriculum_schedule is None:
@@ -272,7 +276,6 @@ def main():
     # TensorBoard 로거
     p1_logger = configure(f"{args.tensorboard_log}/p1", ["tensorboard", "stdout"])
     p2_logger = configure(f"{args.tensorboard_log}/p2", ["tensorboard", "stdout"])
-    common_logger = configure(f"{args.tensorboard_log}/common", ["tensorboard"])
     p1_model.set_logger(p1_logger)
     p2_model.set_logger(p2_logger)
 
@@ -343,10 +346,12 @@ def main():
             p1_wr = matchups.get("p1_vs_builtin", {}).get("win_rate", 0)
             p2_wr = matchups.get("p2_vs_builtin", {}).get("win_rate", 0)
             if adaptive_config:
-                current_builtin_winrate = max(p1_wr, p2_wr)
-                latest_p, builtin_p = get_probs(iteration)
-                print(f"  [ADAPTIVE] builtin_wr={current_builtin_winrate*100:.0f}% → "
-                      f"builtin_prob={builtin_p*100:.0f}%, latest={latest_p*100:.0f}%", flush=True)
+                p1_builtin_winrate = p1_wr
+                p2_builtin_winrate = p2_wr
+                p1_latest, p1_builtin = get_probs(iteration, side="p1")
+                p2_latest, p2_builtin = get_probs(iteration, side="p2")
+                print(f"  [ADAPTIVE] p1: wr={p1_wr*100:.0f}% → builtin={p1_builtin*100:.0f}%"
+                      f"  |  p2: wr={p2_wr*100:.0f}% → builtin={p2_builtin*100:.0f}%", flush=True)
 
             # Best model 저장
             if p1_wr > best_p1_builtin:
@@ -359,18 +364,20 @@ def main():
                 print(f"  [BEST] p2 vs builtin: {p2_wr*100:.0f}% (iter {iteration})", flush=True)
 
         # --- Train ---
-        latest_prob, builtin_prob = get_probs(iteration)
-        pool_prob = 1.0 - latest_prob - builtin_prob
+        p1_latest_prob, p1_builtin_prob = get_probs(iteration, side="p1")
+        p2_latest_prob, p2_builtin_prob = get_probs(iteration, side="p2")
 
         # 커리큘럼 메타데이터 로깅
-        common_logger.record("curriculum/builtin_prob", builtin_prob)
-        common_logger.record("curriculum/latest_prob", latest_prob)
-        common_logger.record("curriculum/pool_prob", pool_prob)
-        common_logger.dump(step=p1_model.num_timesteps)
+        p1_logger.record("curriculum/builtin_prob", p1_builtin_prob)
+        p1_logger.record("curriculum/latest_prob", p1_latest_prob)
+        p1_logger.record("curriculum/pool_prob", 1.0 - p1_builtin_prob - p1_latest_prob)
+        p2_logger.record("curriculum/builtin_prob", p2_builtin_prob)
+        p2_logger.record("curriculum/latest_prob", p2_latest_prob)
+        p2_logger.record("curriculum/pool_prob", 1.0 - p2_builtin_prob - p2_latest_prob)
 
         # Train p1 against p2 opponent
         opp_model, opp_name, is_builtin = pool_p2.sample_opponent(
-            p2_model, latest_prob, builtin_prob)
+            p2_model, p1_latest_prob, p1_builtin_prob)
         if is_builtin:
             set_opponent_in_vecenv(p1_envs, None, is_builtin=True, side="player_1")
         else:
@@ -379,7 +386,7 @@ def main():
 
         # Train p2 against p1 opponent
         opp_model, opp_name, is_builtin = pool_p1.sample_opponent(
-            p1_model, latest_prob, builtin_prob)
+            p1_model, p2_latest_prob, p2_builtin_prob)
         if is_builtin:
             set_opponent_in_vecenv(p2_envs, None, is_builtin=True, side="player_2")
         else:
