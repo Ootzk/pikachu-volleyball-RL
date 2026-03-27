@@ -18,7 +18,6 @@ from .physics import (
 )
 from .cloud_and_wave import Cloud, Wave, cloud_and_wave_engine
 from typing import List, Dict
-import pygame
 import os
 
 GROUND_HEIGHT = 304
@@ -30,6 +29,7 @@ def env(**kwargs):
 
 
 def get_image(path):
+    import pygame
     cwd = os.path.dirname(__file__)
     image = pygame.image.load(cwd + "/" + path)
     sfc = pygame.Surface(image.get_size(), flags=pygame.SRCALPHA)
@@ -141,9 +141,12 @@ class raw_env(ParallelEnv):
         )
 
         if self.render_mode == "human":
+            import pygame
             self.clock = pygame.time.Clock()
 
         if render_mode is not None:
+            import pygame
+            self.pygame = pygame
             self.get_all_image()
 
     def reset(self, seed=None, options=None):

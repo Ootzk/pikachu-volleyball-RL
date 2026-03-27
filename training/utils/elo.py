@@ -24,11 +24,11 @@ def update_elo(ra, rb, result, k=K_FACTOR):
 class Player:
     """대전에 참여하는 플레이어."""
 
-    def __init__(self, name, player_type, model_path=None):
+    def __init__(self, name, player_type, model_path=None, model=None):
         self.name = name
         self.player_type = player_type  # "random", "builtin", "model"
-        self.model = None
-        if player_type == "model" and model_path:
+        self.model = model
+        if player_type == "model" and model_path and model is None:
             self.model = PPO.load(model_path, device="cpu")
 
     def get_action(self, obs, env, agent_id):

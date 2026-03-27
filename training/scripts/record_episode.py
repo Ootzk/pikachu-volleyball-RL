@@ -9,8 +9,9 @@ Usage:
 """
 
 import argparse
+import subprocess
 
-from moviepy import ImageSequenceClip
+import numpy as np
 from stable_baselines3 import PPO
 
 from pikazoo.env.pikazoo_env import raw_env
@@ -18,7 +19,7 @@ from pikazoo.wrappers import NormalizeObservation, SimplifyAction
 
 
 def record_episode(env, output_path, seed=None, fps=25, p1_model=None, p2_model=None):
-    """에피소드를 실행하고 영상으로 저장.
+    """에피소드를 실행하고 영상으로 저장 (ffmpeg 스트리밍, 메모리 절약).
 
     Args:
         env: SimplifyAction + NormalizeObservation 래퍼가 적용된 환경.
@@ -29,11 +30,27 @@ def record_episode(env, output_path, seed=None, fps=25, p1_model=None, p2_model=
         p2_model: player_2 모델 (None이면 랜덤).
     """
     obs, info = env.reset(seed=seed)
+    first_frame = env.render()
+    h, w = first_frame.shape[:2]
 
-    frames = []
+    proc = subprocess.Popen(
+        ["ffmpeg", "-y", "-f", "rawvideo", "-vcodec", "rawvideo",
+         "-s", f"{w}x{h}", "-pix_fmt", "rgb24", "-r", str(fps),
+         "-i", "-", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+         "-preset", "fast", "-loglevel", "warning", output_path],
+        stdin=subprocess.PIPE,
+    )
+
+    frame_count = 0
+
+    def write_frame(frame):
+        nonlocal frame_count
+        proc.stdin.write(np.ascontiguousarray(frame).tobytes())
+        frame_count += 1
+
+    write_frame(first_frame)
+
     while env.agents:
-        frames.append(env.render())
-
         actions = {}
         for agent, model in [("player_1", p1_model), ("player_2", p2_model)]:
             if agent not in env.agents:
@@ -45,12 +62,13 @@ def record_episode(env, output_path, seed=None, fps=25, p1_model=None, p2_model=
                 actions[agent] = env.action_space(agent).sample()
 
         obs, rewards, terminated, truncated, info = env.step(actions)
-    frames.append(env.render())
+        write_frame(env.render())
+
+    proc.stdin.close()
+    proc.wait()
     env.close()
 
-    clip = ImageSequenceClip(frames, fps=fps)
-    clip.write_videofile(output_path, logger="bar")
-    print(f"\nSaved to {output_path} ({len(frames)} frames)")
+    print(f"Saved to {output_path} ({frame_count} frames)")
 
 
 def main():

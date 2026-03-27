@@ -1,16 +1,20 @@
-"""라운드 로빈 ELO 평가 스크립트.
+"""라운드 로빈 평가 스크립트 (ELO + 상세 통계).
 
 Usage:
-  uv run python training/scripts/evaluate.py --players random,builtin,models/checkpoints/ppo_pikazoo --games 50
+  uv run python training/scripts/evaluate.py --players random,builtin,models/checkpoints/p1/ppo_vs_builtin --games 50
 """
 
 import argparse
+from itertools import combinations
 
-from training.utils.elo import make_player, round_robin
+import numpy as np
+
+from training.utils.elo import make_player, update_elo, INITIAL_ELO
+from training.utils.match_stats import play_game_detailed
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Round-robin ELO evaluation")
+    parser = argparse.ArgumentParser(description="Round-robin evaluation with detailed stats")
     parser.add_argument("--players", required=True,
                         help="Comma-separated player specs (random, builtin, or model path)")
     parser.add_argument("--games", type=int, default=100, help="Games per pair")
@@ -20,26 +24,68 @@ def main():
 
     player_specs = [s.strip() for s in args.players.split(",")]
     players = [make_player(spec) for spec in player_specs]
+    rng = np.random.default_rng(args.seed)
 
     print(f"Players: {[p.name for p in players]}")
     print(f"Games per pair: {args.games}")
-    print(f"Winning score: {args.score}\n")
+    print(f"Winning score: {args.score}")
 
-    results, elos = round_robin(players, games_per_pair=args.games,
-                                winning_score=args.score, seed=args.seed)
+    elos = {p.name: INITIAL_ELO for p in players}
 
-    # 대전 결과 출력
-    print("=== Match Results ===")
-    for (p1_name, p2_name), (wins, losses) in results.items():
-        total = wins + losses
-        win_pct = wins / total * 100
-        print(f"{p1_name:20s} vs {p2_name:20s}: {wins:3d}W {losses:3d}L ({win_pct:5.1f}%)")
+    for p1, p2 in combinations(players, 2):
+        all_rounds = []
+        p1_wins = 0
 
-    # ELO 레이팅 출력
-    print("\n=== ELO Ratings ===")
-    sorted_elos = sorted(elos.items(), key=lambda x: x[1], reverse=True)
-    for name, elo in sorted_elos:
-        print(f"{name:20s}: {elo:7.1f}")
+        all_stats = []
+        for _ in range(args.games):
+            game_seed = int(rng.integers(0, 2**31))
+            stats = play_game_detailed(p1, p2, winning_score=args.score, seed=game_seed)
+            all_stats.append(stats)
+            result = 1 if stats.winner == "player_1" else 0
+            p1_wins += result
+            elos[p1.name], elos[p2.name] = update_elo(elos[p1.name], elos[p2.name], result)
+            all_rounds.extend(stats.rounds)
+
+        p2_wins = args.games - p1_wins
+        avg_p1_score = np.mean([s.p1_score for s in all_stats])
+        avg_p2_score = np.mean([s.p2_score for s in all_stats])
+
+        # 서브별 득점 집계
+        p1_serve = [r for r in all_rounds if r.server == "player_1"]
+        p2_serve = [r for r in all_rounds if r.server == "player_2"]
+        rally_lengths = [r.rally_length for r in all_rounds]
+
+        print(f"\n{'=' * 60}")
+        print(f"  {p1.name} (p1) vs {p2.name} (p2)")
+        print(f"{'=' * 60}")
+        print(f"  승패: p1 {p1_wins}W {p2_wins}L ({p1_wins / args.games * 100:.0f}%)")
+        print(f"  평균 득점: p1 {avg_p1_score:.1f} - p2 {avg_p2_score:.1f}")
+
+        # 서브별 득점 히트맵
+        if p1_serve:
+            p1s_p1w = sum(1 for r in p1_serve if r.winner == "player_1")
+            p1s_p2w = len(p1_serve) - p1s_p1w
+            print(f"\n  [p1 서브] p1 득점 {p1s_p1w:4d} ({p1s_p1w/len(p1_serve)*100:5.1f}%)"
+                  f"  |  p2 득점 {p1s_p2w:4d} ({p1s_p2w/len(p1_serve)*100:5.1f}%)"
+                  f"  |  총 {len(p1_serve)}라운드")
+        if p2_serve:
+            p2s_p1w = sum(1 for r in p2_serve if r.winner == "player_1")
+            p2s_p2w = len(p2_serve) - p2s_p1w
+            print(f"  [p2 서브] p1 득점 {p2s_p1w:4d} ({p2s_p1w/len(p2_serve)*100:5.1f}%)"
+                  f"  |  p2 득점 {p2s_p2w:4d} ({p2s_p2w/len(p2_serve)*100:5.1f}%)"
+                  f"  |  총 {len(p2_serve)}라운드")
+
+        # 랠리 길이
+        print(f"\n  랠리: 평균 {np.mean(rally_lengths):.0f}"
+              f"  중앙값 {np.median(rally_lengths):.0f}"
+              f"  범위 {np.min(rally_lengths)}~{np.max(rally_lengths)} 스텝")
+
+    # ELO 레이팅
+    print(f"\n{'=' * 60}")
+    print(f"  ELO Ratings")
+    print(f"{'=' * 60}")
+    for name, elo in sorted(elos.items(), key=lambda x: x[1], reverse=True):
+        print(f"  {name:20s}: {elo:7.1f}")
 
 
 if __name__ == "__main__":

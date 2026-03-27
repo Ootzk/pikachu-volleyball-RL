@@ -77,18 +77,20 @@ class EloEvalCallback(BaseCallback):
         return True
 
 
-def make_env(rank, seed=0, opponent="random"):
+def make_env(rank, seed=0, side="player_1", opponent="random"):
     """환경 팩토리 함수."""
 
     def _init():
-        is_p2_computer = opponent == "builtin"
+        is_p1_computer = opponent == "builtin" and side == "player_2"
+        is_p2_computer = opponent == "builtin" and side == "player_1"
         env = raw_env(
             winning_score=15, serve="winner",
+            is_player1_computer=is_p1_computer,
             is_player2_computer=is_p2_computer,
         )
         env = SimplifyAction(env)
         env = NormalizeObservation(env)
-        env = ConvertSingleAgent(env, side="player_1")
+        env = ConvertSingleAgent(env, side=side)
         env = GymnasiumWrapper(env)
         env.reset(seed=seed + rank)
         return env
@@ -101,6 +103,8 @@ def main():
     parser.add_argument("--timesteps", type=int, default=100_000)
     parser.add_argument("--num-envs", type=int, default=8)
     parser.add_argument("--save-path", default="models/checkpoints/ppo_pikazoo")
+    parser.add_argument("--side", default="player_1", choices=["player_1", "player_2"],
+                        help="Which side to train")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--opponent", default="random", choices=["random", "builtin"],
                         help="Opponent type: random or builtin rule AI")
@@ -111,7 +115,7 @@ def main():
     args = parser.parse_args()
 
     env = SubprocVecEnv([
-        make_env(i, seed=args.seed, opponent=args.opponent)
+        make_env(i, seed=args.seed, side=args.side, opponent=args.opponent)
         for i in range(args.num_envs)
     ])
 
