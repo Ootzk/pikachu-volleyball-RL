@@ -26,9 +26,8 @@ class OpponentPool:
     """PFSP 기반 상대풀 관리.
 
     상대 선택 비율:
-    - latest_prob: 최신 상대 모델
     - builtin_prob: builtin AI
-    - 나머지: 풀에서 PFSP 샘플링 (승률 낮은 상대 우선)
+    - 나머지: 풀에서 PFSP 샘플링 (최신 모델 포함, 승률 낮은 상대 우선)
     """
 
     def __init__(self, pool_dir, side):
@@ -46,19 +45,16 @@ class OpponentPool:
         self.win_stats[name] = [0, 0]
         return path
 
-    def sample_opponent(self, latest_model, latest_prob=0.5, builtin_prob=0.2):
-        """상대 선택. latest/builtin/풀(PFSP) 비율로 샘플링."""
+    def sample_opponent(self, builtin_prob=0.2):
+        """상대 선택. builtin / 풀(PFSP) 비율로 샘플링."""
         r = random.random()
 
-        if r < latest_prob:
-            return latest_model, "latest", False
-
-        if r < latest_prob + builtin_prob:
-            return None, "builtin", True  # None 모델, builtin 플래그
+        if r < builtin_prob:
+            return None, "builtin", True
 
         # 풀에서 PFSP 샘플링
         if not self.checkpoints:
-            return latest_model, "latest", False
+            return None, "builtin", True  # 풀이 비어있으면 builtin
 
         weights = self._pfsp_weights()
         idx = random.choices(range(len(self.checkpoints)), weights=weights, k=1)[0]
@@ -90,4 +86,3 @@ class OpponentPool:
             # 승률이 낮을수록 높은 가중치
             weights.append(1.0 - win_rate + 0.1)  # +0.1로 최소 확률 보장
         return weights
-

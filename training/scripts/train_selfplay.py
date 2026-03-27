@@ -176,8 +176,7 @@ def main():
     parser.add_argument("--steps-per-iter", type=int, default=20000)
     parser.add_argument("--num-envs", type=int, default=8)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--latest-prob", type=float, default=0.5)
-    parser.add_argument("--builtin-prob", type=float, default=0.2)
+    parser.add_argument("--builtin-prob", type=float, default=0.6)
     parser.add_argument("--curriculum", default=None,
                         help="Path to curriculum JSON file for dynamic opponent mix")
     parser.add_argument("--adaptive", default=None,
@@ -210,50 +209,39 @@ def main():
     p1_builtin_winrate = 0.0  # adaptive 모드용
     p2_builtin_winrate = 0.0
 
-    def _adaptive_probs(winrate):
-        """adaptive 승률 기반 비율 계산."""
+    def _adaptive_builtin(winrate):
+        """adaptive 승률 기반 builtin_prob 계산 (선형 보간)."""
         thresholds = adaptive_config["thresholds"]
         if winrate <= thresholds[0]["winrate"]:
-            return thresholds[0]["latest"], thresholds[0]["builtin"]
+            return thresholds[0]["builtin"]
         if winrate >= thresholds[-1]["winrate"]:
-            return thresholds[-1]["latest"], thresholds[-1]["builtin"]
+            return thresholds[-1]["builtin"]
         for i in range(len(thresholds) - 1):
             a, b = thresholds[i], thresholds[i + 1]
             if a["winrate"] <= winrate <= b["winrate"]:
                 t = (winrate - a["winrate"]) / (b["winrate"] - a["winrate"])
-                builtin = a["builtin"] + t * (b["builtin"] - a["builtin"])
-                latest = a["latest"] + t * (b["latest"] - a["latest"])
-                return latest, builtin
-        return thresholds[-1]["latest"], thresholds[-1]["builtin"]
+                return a["builtin"] + t * (b["builtin"] - a["builtin"])
+        return thresholds[-1]["builtin"]
 
-    def get_probs(iteration, side="p1"):
-        """커리큘럼 또는 고정 비율 반환: (latest_prob, builtin_prob)."""
+    def get_builtin_prob(iteration, side="p1"):
+        """builtin_prob 반환. 나머지는 풀(PFSP)."""
         if adaptive_config:
             wr = p1_builtin_winrate if side == "p1" else p2_builtin_winrate
-            return _adaptive_probs(wr)
-            return thresholds[-1]["latest"], thresholds[-1]["builtin"]
+            return _adaptive_builtin(wr)
 
         if curriculum_schedule is None:
-            return args.latest_prob, args.builtin_prob
+            return args.builtin_prob
         # 선형 보간
         if iteration <= curriculum_schedule[0]["iter"]:
-            s = curriculum_schedule[0]
-            return s["latest"], s["builtin"]
+            return curriculum_schedule[0]["builtin"]
         if iteration >= curriculum_schedule[-1]["iter"]:
-            s = curriculum_schedule[-1]
-            return s["latest"], s["builtin"]
+            return curriculum_schedule[-1]["builtin"]
         for i in range(len(curriculum_schedule) - 1):
             a, b = curriculum_schedule[i], curriculum_schedule[i + 1]
             if a["iter"] <= iteration <= b["iter"]:
                 t = (iteration - a["iter"]) / (b["iter"] - a["iter"])
-                latest = a["latest"] + t * (b["latest"] - a["latest"])
-                builtin = a["builtin"] + t * (b["builtin"] - a["builtin"])
-                return latest, builtin
-        return args.latest_prob, args.builtin_prob
-
-    initial_latest, initial_builtin = get_probs(0)
-    pool_prob = 1.0 - initial_latest - initial_builtin
-    assert pool_prob >= 0, "latest_prob + builtin_prob must be <= 1.0"
+                return a["builtin"] + t * (b["builtin"] - a["builtin"])
+        return args.builtin_prob
 
     # 환경 생성 (DummyVecEnv)
     p1_envs = DummyVecEnv([make_selfplay_env(i, "player_1", args.seed) for i in range(args.num_envs)])
@@ -291,10 +279,9 @@ def main():
         print(f"Adaptive curriculum: builtin {first['builtin']*100:.0f}%→{last['builtin']*100:.0f}% based on win rate")
     elif curriculum_schedule:
         first, last = curriculum_schedule[0], curriculum_schedule[-1]
-        print(f"Curriculum: builtin {first['builtin']*100:.0f}%→{last['builtin']*100:.0f}%, "
-              f"latest {first['latest']*100:.0f}%→{last['latest']*100:.0f}%")
+        print(f"Curriculum: builtin {first['builtin']*100:.0f}%→{last['builtin']*100:.0f}%")
     else:
-        print(f"Opponent mix: latest={args.latest_prob}, builtin={args.builtin_prob}, pool(PFSP)={pool_prob:.1f}")
+        print(f"Opponent mix: builtin={args.builtin_prob}, pool(PFSP)={1.0 - args.builtin_prob:.1f}")
 
     best_p1_builtin = -1.0
     best_p2_builtin = -1.0
@@ -348,10 +335,10 @@ def main():
             if adaptive_config:
                 p1_builtin_winrate = p1_wr
                 p2_builtin_winrate = p2_wr
-                p1_latest, p1_builtin = get_probs(iteration, side="p1")
-                p2_latest, p2_builtin = get_probs(iteration, side="p2")
-                print(f"  [ADAPTIVE] p1: wr={p1_wr*100:.0f}% → builtin={p1_builtin*100:.0f}%"
-                      f"  |  p2: wr={p2_wr*100:.0f}% → builtin={p2_builtin*100:.0f}%", flush=True)
+                p1_bp = get_builtin_prob(iteration, side="p1")
+                p2_bp = get_builtin_prob(iteration, side="p2")
+                print(f"  [ADAPTIVE] p1: wr={p1_wr*100:.0f}% → builtin={p1_bp*100:.0f}%"
+                      f"  |  p2: wr={p2_wr*100:.0f}% → builtin={p2_bp*100:.0f}%", flush=True)
 
             # Best model 저장
             if p1_wr > best_p1_builtin:
@@ -364,20 +351,22 @@ def main():
                 print(f"  [BEST] p2 vs builtin: {p2_wr*100:.0f}% (iter {iteration})", flush=True)
 
         # --- Train ---
-        p1_latest_prob, p1_builtin_prob = get_probs(iteration, side="p1")
-        p2_latest_prob, p2_builtin_prob = get_probs(iteration, side="p2")
+        p1_builtin_prob = get_builtin_prob(iteration, side="p1")
+        p2_builtin_prob = get_builtin_prob(iteration, side="p2")
 
         # 커리큘럼 메타데이터 로깅
         p1_logger.record("curriculum/builtin_prob", p1_builtin_prob)
-        p1_logger.record("curriculum/latest_prob", p1_latest_prob)
-        p1_logger.record("curriculum/pool_prob", 1.0 - p1_builtin_prob - p1_latest_prob)
+        p1_logger.record("curriculum/pool_prob", 1.0 - p1_builtin_prob)
         p2_logger.record("curriculum/builtin_prob", p2_builtin_prob)
-        p2_logger.record("curriculum/latest_prob", p2_latest_prob)
-        p2_logger.record("curriculum/pool_prob", 1.0 - p2_builtin_prob - p2_latest_prob)
+        p2_logger.record("curriculum/pool_prob", 1.0 - p2_builtin_prob)
+
+        # Save to pool (매 iteration, 학습 전)
+        if iteration % args.save_interval == 0:
+            pool_p1.add_checkpoint(p1_model, iteration)
+            pool_p2.add_checkpoint(p2_model, iteration)
 
         # Train p1 against p2 opponent
-        opp_model, opp_name, is_builtin = pool_p2.sample_opponent(
-            p2_model, p1_latest_prob, p1_builtin_prob)
+        opp_model, opp_name, is_builtin = pool_p2.sample_opponent(p1_builtin_prob)
         if is_builtin:
             set_opponent_in_vecenv(p1_envs, None, is_builtin=True, side="player_1")
         else:
@@ -385,18 +374,12 @@ def main():
         p1_model.learn(total_timesteps=args.steps_per_iter, reset_num_timesteps=False)
 
         # Train p2 against p1 opponent
-        opp_model, opp_name, is_builtin = pool_p1.sample_opponent(
-            p1_model, p2_latest_prob, p2_builtin_prob)
+        opp_model, opp_name, is_builtin = pool_p1.sample_opponent(p2_builtin_prob)
         if is_builtin:
             set_opponent_in_vecenv(p2_envs, None, is_builtin=True, side="player_2")
         else:
             set_opponent_in_vecenv(p2_envs, make_opponent_policy(opp_model), is_builtin=False, side="player_2")
         p2_model.learn(total_timesteps=args.steps_per_iter, reset_num_timesteps=False)
-
-        # --- Save to pool ---
-        if iteration % args.save_interval == 0 and iteration > 0:
-            pool_p1.add_checkpoint(p1_model, iteration)
-            pool_p2.add_checkpoint(p2_model, iteration)
 
     # 최종 모델 저장
     p1_model.save(f"{args.save_dir}/p1/selfplay_final")
