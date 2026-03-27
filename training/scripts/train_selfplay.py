@@ -171,9 +171,12 @@ def _update_pool_stats(model, pool, side, games=10, winning_score=15, max_eval=2
         games: 체크포인트당 대전 횟수
         winning_score: 대전 점수제
         max_eval: 최대 평가 체크포인트 수
+
+    Returns:
+        dict with pfsp metrics: avg_winrate, min_winrate, pool_size (or None if pool empty)
     """
     if not pool.checkpoints:
-        return
+        return None
 
     current_player = Player(side, "model", model=model)
 
@@ -188,6 +191,7 @@ def _update_pool_stats(model, pool, side, games=10, winning_score=15, max_eval=2
 
     print(f"  [PFSP] {side} pool update: {len(checkpoints)}/{len(pool.checkpoints)} checkpoints", flush=True)
 
+    win_rates = []
     rng = np.random.default_rng()
     for path in checkpoints:
         name = os.path.basename(path)
@@ -210,8 +214,15 @@ def _update_pool_stats(model, pool, side, games=10, winning_score=15, max_eval=2
                 wins += 1
 
         wr = pool.get_win_rate(name)
+        win_rates.append(wr)
         weight = 1.0 - wr + 0.1
         print(f"    {name}: {wins}W {games - wins}L (wr={wr:.2f}, weight={weight:.2f})", flush=True)
+
+    return {
+        "avg_winrate": float(np.mean(win_rates)),
+        "min_winrate": float(np.min(win_rates)),
+        "pool_size": len(pool.checkpoints),
+    }
 
 
 def main():
@@ -390,12 +401,22 @@ def main():
             p2_logger.dump(step=step)
 
             # PFSP pool 업데이트: 현재 모델 vs pool 멤버
-            _update_pool_stats(p1_model, pool_p2, side="p1",
-                               games=args.eval_games, winning_score=args.eval_score,
-                               max_eval=args.pfsp_eval_max)
-            _update_pool_stats(p2_model, pool_p1, side="p2",
-                               games=args.eval_games, winning_score=args.eval_score,
-                               max_eval=args.pfsp_eval_max)
+            p1_pfsp = _update_pool_stats(p1_model, pool_p2, side="p1",
+                                         games=args.eval_games, winning_score=args.eval_score,
+                                         max_eval=args.pfsp_eval_max)
+            p2_pfsp = _update_pool_stats(p2_model, pool_p1, side="p2",
+                                         games=args.eval_games, winning_score=args.eval_score,
+                                         max_eval=args.pfsp_eval_max)
+            if p1_pfsp:
+                p1_logger.record("pfsp/avg_pool_winrate", p1_pfsp["avg_winrate"])
+                p1_logger.record("pfsp/min_winrate", p1_pfsp["min_winrate"])
+                p1_logger.record("pfsp/pool_size", p1_pfsp["pool_size"])
+                p1_logger.dump(step=step)
+            if p2_pfsp:
+                p2_logger.record("pfsp/avg_pool_winrate", p2_pfsp["avg_winrate"])
+                p2_logger.record("pfsp/min_winrate", p2_pfsp["min_winrate"])
+                p2_logger.record("pfsp/pool_size", p2_pfsp["pool_size"])
+                p2_logger.dump(step=step)
 
             # Adaptive 커리큘럼 업데이트
             p1_wr = matchups.get("p1_vs_builtin", {}).get("win_rate", 0)
