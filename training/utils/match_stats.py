@@ -56,10 +56,15 @@ class GameStats:
 
 
 MAX_RALLY_STEPS = 3000   # 라운드당 최대 스텝 (무한 랠리 방지)
+MAX_GAME_STEPS = 30000   # 게임당 최대 스텝 (무한 게임 방지)
 
 
-def play_game_detailed(p1, p2, winning_score=15, seed=None):
-    """상세 통계를 포함한 1판 수행. 라운드당 MAX_RALLY_STEPS 초과 시 무승부 처리."""
+def play_game_detailed(p1, p2, winning_score=15, seed=None, max_game_steps=MAX_GAME_STEPS):
+    """상세 통계를 포함한 1판 수행.
+
+    라운드당 MAX_RALLY_STEPS 초과 시 무승부 처리.
+    게임 전체 max_game_steps 초과 시 현재 점수 기준 종료.
+    """
     is_p1_computer = p1.player_type == "builtin"
     is_p2_computer = p2.player_type == "builtin"
 
@@ -87,6 +92,17 @@ def play_game_detailed(p1, p2, winning_score=15, seed=None):
         obs, rewards, terminated, truncated, infos = env.step(actions)
         rally_steps += 1
         total_steps += 1
+
+        # 게임 전체 스텝 제한
+        if total_steps >= max_game_steps:
+            if rally_steps > 0:
+                truncated_rallies += 1
+                stats.rounds.append(RoundStats(
+                    server=current_server,
+                    winner="draw",
+                    rally_length=rally_steps,
+                ))
+            break
 
         # 무한 랠리 감지 (라운드 단위)
         if rally_steps >= MAX_RALLY_STEPS:
