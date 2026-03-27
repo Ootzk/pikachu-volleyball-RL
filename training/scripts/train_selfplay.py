@@ -180,6 +180,8 @@ def main():
     parser.add_argument("--builtin-prob", type=float, default=0.2)
     parser.add_argument("--curriculum", default=None,
                         help="Path to curriculum JSON file for dynamic opponent mix")
+    parser.add_argument("--adaptive", default=None,
+                        help="Path to adaptive curriculum JSON file")
     parser.add_argument("--save-interval", type=int, default=5)
     parser.add_argument("--eval-freq", type=int, default=10)
     parser.add_argument("--eval-games", type=int, default=20)
@@ -198,8 +200,35 @@ def main():
             curriculum_schedule = json.load(f)["schedule"]
         curriculum_schedule.sort(key=lambda x: x["iter"])
 
+    # Adaptive 커리큘럼 로드
+    adaptive_config = None
+    if args.adaptive:
+        import json
+        with open(args.adaptive) as f:
+            adaptive_config = json.load(f)
+
+    current_builtin_winrate = 0.0  # adaptive 모드용
+
     def get_probs(iteration):
         """커리큘럼 또는 고정 비율 반환: (latest_prob, builtin_prob)."""
+        nonlocal current_builtin_winrate
+
+        if adaptive_config:
+            wr = current_builtin_winrate
+            thresholds = adaptive_config["thresholds"]
+            if wr <= thresholds[0]["winrate"]:
+                return thresholds[0]["latest"], thresholds[0]["builtin"]
+            if wr >= thresholds[-1]["winrate"]:
+                return thresholds[-1]["latest"], thresholds[-1]["builtin"]
+            for i in range(len(thresholds) - 1):
+                a, b = thresholds[i], thresholds[i + 1]
+                if a["winrate"] <= wr <= b["winrate"]:
+                    t = (wr - a["winrate"]) / (b["winrate"] - a["winrate"])
+                    builtin = a["builtin"] + t * (b["builtin"] - a["builtin"])
+                    latest = a["latest"] + t * (b["latest"] - a["latest"])
+                    return latest, builtin
+            return thresholds[-1]["latest"], thresholds[-1]["builtin"]
+
         if curriculum_schedule is None:
             return args.latest_prob, args.builtin_prob
         # 선형 보간
@@ -254,7 +283,10 @@ def main():
 
     print(f"Self-play training: {args.total_iterations} iterations x {args.steps_per_iter} steps")
     print(f"Envs: {args.num_envs} (DummyVecEnv)")
-    if curriculum_schedule:
+    if adaptive_config:
+        first, last = adaptive_config["thresholds"][0], adaptive_config["thresholds"][-1]
+        print(f"Adaptive curriculum: builtin {first['builtin']*100:.0f}%→{last['builtin']*100:.0f}% based on win rate")
+    elif curriculum_schedule:
         first, last = curriculum_schedule[0], curriculum_schedule[-1]
         print(f"Curriculum: builtin {first['builtin']*100:.0f}%→{last['builtin']*100:.0f}%, "
               f"latest {first['latest']*100:.0f}%→{last['latest']*100:.0f}%")
@@ -307,9 +339,16 @@ def main():
             p1_logger.dump(step=step)
             p2_logger.dump(step=step)
 
-            # Best model 저장
+            # Adaptive 커리큘럼 업데이트
             p1_wr = matchups.get("p1_vs_builtin", {}).get("win_rate", 0)
             p2_wr = matchups.get("p2_vs_builtin", {}).get("win_rate", 0)
+            if adaptive_config:
+                current_builtin_winrate = max(p1_wr, p2_wr)
+                latest_p, builtin_p = get_probs(iteration)
+                print(f"  [ADAPTIVE] builtin_wr={current_builtin_winrate*100:.0f}% → "
+                      f"builtin_prob={builtin_p*100:.0f}%, latest={latest_p*100:.0f}%", flush=True)
+
+            # Best model 저장
             if p1_wr > best_p1_builtin:
                 best_p1_builtin = p1_wr
                 p1_model.save(f"{args.save_dir}/p1/selfplay_best")

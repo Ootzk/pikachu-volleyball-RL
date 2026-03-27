@@ -44,7 +44,6 @@ class OpponentPool:
         name = os.path.basename(path)
         self.checkpoints.append(path)
         self.win_stats[name] = [0, 0]
-            self._prune()
         return path
 
     def sample_opponent(self, latest_model, latest_prob=0.5, builtin_prob=0.2):
