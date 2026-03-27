@@ -173,7 +173,8 @@ def main():
                         help="Path to adaptive curriculum JSON file")
     parser.add_argument("--save-interval", type=int, default=5)
     parser.add_argument("--eval-freq", type=int, default=10)
-    parser.add_argument("--eval-games", type=int, default=20)
+    parser.add_argument("--eval-games", type=int, default=10)
+    parser.add_argument("--eval-score", type=int, default=5, help="Winning score for eval games")
     parser.add_argument("--tensorboard-log", default="tensorboard_logs/selfplay")
     parser.add_argument("--save-dir", required=True, help="Directory for checkpoints and opponent pool")
     parser.add_argument("--ent-coef", type=float, default=0.01, help="Entropy coefficient for exploration")
@@ -284,7 +285,7 @@ def main():
             matchups = evaluate_selfplay_detailed(
                 p1_model, p2_model,
                 games=args.eval_games,
-                winning_score=15,
+                winning_score=args.eval_score,
             )
 
             step = p1_model.num_timesteps
